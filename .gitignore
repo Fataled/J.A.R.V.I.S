@@ -20,7 +20,7 @@ models/
 *.npy
 
 # Cache
-.cache/
+.cache
 
 # IDE / Editor
 .idea/
