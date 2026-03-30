@@ -1,19 +1,60 @@
+import os
 import sys
 import subprocess
+import time
+
 from anthropic import beta_tool
+import threading
+import json
+import psutil
+import GPUtil
 
 class JarvisSystem:
+    CLIPS_DIR = "/home/brumeako/Videos/JarvisClips/"
+
+    PROCESS_BLACKLIST = {
+        "systemd", "dbus", "pipewire", "wireplumber",
+        "hyprland", "waybar", "sddm", "login", "bash",
+        "zsh", "fish", "ssh", "gpg-agent", "polkit",
+        "hyprpaper", "dunst", "hypridle", "hyprlock",
+        "xdg-desktop-portal", "at-spi", "gvfsd",
+        "python3", "python", "wf-recorder",
+        "pulseaudio", "pipewire-pulse", "blueman",
+        "nm-applet", "NetworkManager", "wpa_supplicant"
+    }
+
     def __init__(self):
         self.os = sys.platform
         self.processes = {}
         result = subprocess.run(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"], capture_output=True, text=True)
         self.muted = "MUTED" in result.stdout
+        self.recorder = None
+        self.protected_pids = {os.getpid()}  # add recorder pid after it starts
+        self.recording_thread = threading.Thread(target=self.start_recording, daemon=True)
+        self.recording_thread.start()
+
+    @staticmethod
+    def get_focused_monitor():
+        result = subprocess.run(["hyprctl", "monitors", "-j"], capture_output=True, text=True)
+        if not result.stdout.strip():
+            return "DP-2"
+        try:
+            monitors = json.loads(result.stdout)
+            return next((m["name"] for m in monitors if m["focused"]), "DP-2")
+        except json.JSONDecodeError:
+            return "DP-2"
 
     def open_app(self, app: str):
-        if self.os == "Linux":
-            self.processes[app] = subprocess.Popen(["xdg-open", app])
-        elif self.os == "Windows":
-            self.processes[app] = subprocess.run(f"start {app}", shell=True)
+        print(f"Attempting to open: '{app}' OS: {self.os}")
+        try:
+            if self.os == "linux":
+                proc = subprocess.Popen([app.lower()])
+            elif self.os == "windows":
+                proc = subprocess.Popen(f"start {app}", shell=True)
+            self.processes[app] = proc
+            return f"Opened {app} with PID {proc.pid}"
+        except FileNotFoundError:
+            raise Exception(f"Could not find application: {app}")
 
     def close_app(self, app: str):
         if app in self.processes:
@@ -29,6 +70,63 @@ class JarvisSystem:
     def mute(self):
         subprocess.run(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"])
         self.muted = not self.muted
+
+    def start_recording(self):
+        monitor = self.get_focused_monitor()
+        self.recorder = subprocess.Popen(
+            ["wf-recorder", "-o", monitor, "-c", "h264_nvenc", "-f", "/tmp/jarvis_recording.mp4"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        self.protected_pids.add(self.recorder.pid)
+
+    def jarvis_clip_that(self, filename: str):
+        output_path = os.path.join(JarvisSystem.CLIPS_DIR, f"{filename}.mp4")
+        subprocess.run([
+            "ffmpeg", "-sseof", "-30",
+            "-i", "/tmp/jarvis_recording.mp4",
+            "-c", "copy",
+            "-y",
+            output_path,
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return output_path
+
+    def stop_recording(self):
+        if hasattr(self, "recorder"):
+            self.recorder.terminate()
+
+    def is_protected(self, proc: psutil.Process):
+        try:
+            username = proc.username()
+            login = os.getlogin()
+            if proc.pid in self.protected_pids:
+                return True
+            if proc.name().lower() in JarvisSystem.PROCESS_BLACKLIST:
+                return True
+            if proc.uids().real == 0:
+                return True
+            if username != login:
+                print(f"Skipping {proc.name()} - owner: {username} vs {login}")
+                return True
+            return False
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            return True
+
+    def close_all_except(self, keep: list[str]):
+        keep_lower = [k.lower() for k in keep]
+        for proc in psutil.process_iter(['pid', 'name', 'username']):
+            try:
+                if self.is_protected(proc):
+                    print(f"Protected: {proc.name()}")
+                    continue
+                if any(k in proc.name().lower() for k in keep_lower):
+                    print(f"Keeping: {proc.name()}")
+                    continue
+                print(f"Killing: {proc.name()}")
+                proc.kill()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+
 
 
 system = JarvisSystem()
@@ -100,5 +198,140 @@ def mute():
         return f"Successfully muted"
     except Exception:
         return f"Failed to mute"
+
+@beta_tool
+def read_active_file() -> str:
+    """Read the currently active file open in the IDE.
+    Returns:
+        The file path and contents of the active file
+    """
+    try:
+        return open("/tmp/jarvis_active_file").read()
+    except FileNotFoundError:
+        return "No file currently open in IDE"
+
+@beta_tool
+def jarvis_clip_that(filename: str):
+    """
+    Clip tha last 30 seconds that occured on screen
+    Args:
+        filename: The name of the file to clip
+
+    Returns:
+        A file in the directory of the last 30 seconds named whatever filename is
+
+    """
+    try:
+        system.jarvis_clip_that(filename)
+        return f"Successfully screenrecord the last 30 sec and saved it to {filename}"
+    except Exception as e:
+        return f"Failed to screenrecord the last 30 sec: {e}"
+
+def get_size(bytes, suffix="B" ):
+    factor = 1024
+    for unit in ["", "K", "M", "G", "T", "P", "E", "Z"]:
+        if bytes < factor:
+            return f"{bytes:.2f}{unit}{suffix}"
+        bytes /= factor
+
+@beta_tool
+def get_system_status() -> str:
+    """Get the system status as a string.
+    Returns:
+        The system status as a string
+    """
+    cpu_freq = psutil.cpu_freq()
+    svmem = psutil.virtual_memory()
+    disk = psutil.disk_partitions()
+    net_io = psutil.net_if_addrs()
+    gpus = GPUtil.getGPUs()
+
+    gpu_info = "\n".join([
+        f"  {g.name}: {g.load * 100:.1f}% load, {g.memoryUsed}MB/{g.memoryTotal}MB VRAM, {g.temperature}°C"
+        for g in gpus
+    ]) or "  No GPUs found"
+
+    partition_data = []
+    for partition in disk:
+        try:
+            usage = psutil.disk_usage(partition.mountpoint)
+            partition_data.append(
+                f"  {partition.device} ({partition.mountpoint}): {get_size(usage.used)}/{get_size(usage.total)} ({usage.percent}%)"
+            )
+        except PermissionError:
+            continue
+
+    disk_info = "\n".join(partition_data)
+
+    net_data = []
+    for interface_name, interface_address in net_io.items():
+        for address in interface_address:
+            net_data.append(
+            f"  {address}: {interface_name}: {address.address}, {address.netmask}, {address.broadcast}")
+
+    net_info = "\n".join(net_data)
+
+    net_speed = network_speed()
+
+    return f"""CPU: {psutil.cpu_count(logical=False)} cores, {cpu_freq.current:.0f}MHz, {psutil.cpu_percent()}% usage
+    Memory: {get_size(svmem.used)}/{get_size(svmem.total)} ({svmem.percent}%)
+    Disk:
+    {disk_info}
+    Network: 
+    {net_info}
+    Network speed:
+    {net_speed}
+    GPU:
+    {gpu_info}
+    """
+
+
+@beta_tool
+def network_speed():
+    """Get the network speed of the system.
+    Returns:
+    """
+    try:
+        io = psutil.net_io_counters()
+        bytes_sent, bytes_recv = io.bytes_sent, io.bytes_recv
+        time.sleep(1)
+        io_2 = psutil.net_io_counters()
+        us, ds = io_2.bytes_sent - bytes_sent, io_2.bytes_recv - bytes_recv
+        return (f"Upload: {get_size(io_2.bytes_sent)}   "
+          f", Download: {get_size(io_2.bytes_recv)}   "
+          f", Upload Speed: {get_size(us / 1)}/s   "
+          f", Download Speed: {get_size(ds / 1)}/s      ")
+    except Exception as e:
+        return f"Failed to get network speed: {e}"
+
+
+def stop_recording():
+    """Stop recording the last 30 seconds.
+    Returns:
+    """
+    try:
+        system.stop_recording()
+        return f"Successfully stop recording"
+    except Exception as e:
+        return f"Failed to stop recording: {e}"
+
+@beta_tool
+def close_all_except(keep: list[str]):
+    """
+        Close all apps except the ones in keep
+    Args:
+        keep: apps to keep open
+
+    Returns: Confirmation of whether it was successful or not
+
+    """
+    try:
+        system.close_all_except(keep)
+        return f"Successfully close all apps: {keep}"
+    except Exception as e:
+        return f"Failed to close all apps: {e}"
+
+
+
 
 

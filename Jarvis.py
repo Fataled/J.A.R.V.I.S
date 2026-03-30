@@ -1,4 +1,6 @@
 import time
+from os import wait
+
 from dotenv import load_dotenv
 import os
 from jarvis_spotify import play, pause, resume, currently_playing, clear_and_play
@@ -11,7 +13,7 @@ import numpy as np
 from voice_recognition import VoiceRecognition
 from collections import deque
 from faster_whisper import WhisperModel
-from jarvis_system import set_volume_linux, adjust_volume_linux, close_app, open_app, mute
+from jarvis_system import set_volume_linux, adjust_volume_linux, close_app, open_app, mute, read_active_file, jarvis_clip_that, get_system_status, network_speed
 
 
 class Jarvis:
@@ -48,9 +50,8 @@ class Jarvis:
     
     DISMISSAL RULES:
     - When the user says ANYTHING resembling a farewell — 'that's all', 'thank you', 'goodbye', 'dismissed', 'that will be all' — you MUST call stop_listening. This is mandatory. Do not skip it under any circumstances.
-
-                    """
-
+    
+    """
 
     #devnull = os.open("/dev/null", os.O_WRONLY)
     #os.dup2(devnull, 2)
@@ -66,7 +67,7 @@ class Jarvis:
         self.model = Model(wakeword_model_paths=["models/hey_jarvis_v0.1.onnx"])
         self.client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
         #self.mic = WhisperMic(model="base.en")
-        self.stt_model = WhisperModel("small.en", device="gpu", compute_type="float16")
+        self.stt_model = WhisperModel("large-v3", device="cuda", compute_type="float16")
         self.voice_recognition = VoiceRecognition()
         self.voice = JarvisVoice()
         self.p = PyAudio()
@@ -88,6 +89,11 @@ class Jarvis:
             "set_volume_linux": set_volume_linux,
             "adjust_volume_linux": adjust_volume_linux,
             "mute": mute,
+            "read_active_file": read_active_file,
+            "jarvis_clip_that": jarvis_clip_that,
+            "get_system_status": get_system_status,
+            "network_speed": network_speed,
+            #"close_all_except": close_all_except,
         }
 
         self.tools = [fn.to_dict() for fn in self.tool_map.values() if hasattr(fn, "to_dict")]
@@ -103,14 +109,15 @@ class Jarvis:
             return f"Unknown tool: {name}"
         if name == "stop_listening":
             return fn()
-        return fn.func(**inputs)
+        result =  fn.func(**inputs)
+        print(f"Tool {name} returned: {result}")
+        return str(result) if result is not None else "Done"
 
     def listen(self):
-        print("Listening...")
         frames = []
         silent_chunks = 0
         SILENCE_THRESHOLD = 200
-        SILENCE_LIMIT = 30  # chunks of silence before stopping
+        SILENCE_LIMIT = 50  # chunks of silence before stopping
 
         while True:
             chunk = self.stream.read(Jarvis.CHUNK, exception_on_overflow=False)
@@ -156,13 +163,15 @@ class Jarvis:
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": block.id,
-                        "content": str(result)
+                        "content": str(result) if result is not None else "Done"
                     })
 
-            messages.append({"role": "user", "content": tool_results})
+            if tool_results:
+                messages.append({"role": "user", "content": tool_results})
 
     def jarvis_loop(self):
         farewell_words = {"goodbye", "dismissed", "that's all", "thank you", "that will be all"}
+        HALLUCINATIONS = {"you", "thank you", "thanks", ".", " ", "bye", "goodbye", "you.", "thanks."}
         last_interaction = 0
         audio_buffer = deque(maxlen=50)
 
@@ -178,8 +187,9 @@ class Jarvis:
                     if value > 0.5:
                         buffered_audio = np.concatenate(audio_buffer).astype(np.float32) / 32768.0
                         similarity = self.voice_recognition.compare(buffered_audio)
-                        if similarity > 0.60:
+                        if similarity > 0.50:
                             self.CONVERSATION_MODE = True
+                            self.voice.speak("Yes, sir.")
                             last_interaction = time.time()
                             self.model.prediction_buffer[key].clear()
 
@@ -187,21 +197,25 @@ class Jarvis:
                 if time.time() - last_interaction > 10:
                     self.CONVERSATION_MODE = False
                     print("Waiting for wake word...")
+                    time.sleep(0.5)
                     continue
 
-                result = self.listen().lower()
+                result = self.listen().lower().strip()
+                if not result or len(result) < 3 or result in HALLUCINATIONS:
+                    continue
+
                 if any(phrase in result for phrase in farewell_words):
                     self.CONVERSATION_MODE = False
                     self.voice.speak("Very good, sir.")
                     print("Waiting for wake word...")
+                    time.sleep(0.5)
                     continue
 
                 print(result)
 
                 # Route through tool loop instead of jarvis_say directly
                 self.message_history.append({"role": "user", "content": result})
-                history_slice = self.message_history[-self.MAX_HISTORY:]
-                query = self.run_with_tools(history_slice)
+                query = self.run_with_tools(self.message_history[-self.MAX_HISTORY:])
                 self.message_history.append({"role": "assistant", "content": query})
 
                 print(query)

@@ -1,22 +1,21 @@
 # J.A.R.V.I.S
 > Just A Rather Very Intelligent System
 
-A voice-activated AI assistant inspired by Tony Stark's JARVIS — featuring real-time voice interaction, speaker verification, full PC control, and deep integration with productivity and lifestyle services via the Claude API.
+A voice-activated AI assistant inspired by Tony Stark's JARVIS — featuring real-time voice interaction, speaker verification, full PC control, and Spotify integration via the Claude and ElevenLabs APIs.
 
 ---
 
 ## Features
 
 - 🎙️ **Wake Word Detection** — Passive listening for "Hey Jarvis" via OpenWakeWord
-- 🔒 **Voice Recognition** — Speaker verification using Resemblyzer; only responds to your voice
-- 🖥️ **Full PC Control** — Launch applications, manage files, and automate system tasks
-- 📅 **Calendar Integration** — Create, read, and manage calendar events via natural language
-- 📧 **Email Integration** — Read, compose, and send emails hands-free
+- 🔒 **Speaker Verification** — Responds only to your voice using Resemblyzer cosine similarity
+- 🖥️ **System Control** — Open/close applications and control system volume (set, adjust, mute)
 - 🎵 **Spotify Control** — Play, pause, resume, and search tracks by name and artist
-- 🌐 **Web Search** — Real-time search via DuckDuckGo
-- 🔊 **ElevenLabs TTS** — Natural voice responses with a custom British butler persona
+- 🌐 **Web Access** — DuckDuckGo search and browser tab opening
+- 🔊 **Dual TTS** — ElevenLabs as primary voice; Kokoro (offline) as fallback when quota is exceeded
 - 🧠 **Claude Haiku Brain** — Fast, intelligent responses with native tool use via the Anthropic API
-- 💬 **Conversation Mode** — Sustained dialogue after wake word with automatic timeout
+- 💬 **Conversation Mode** — Sustained dialogue after wake word with automatic 10-second timeout
+- 📄 **Active File Reading** — Read the currently open file in your IDE via `/tmp/jarvis_active_file`
 
 ---
 
@@ -24,13 +23,14 @@ A voice-activated AI assistant inspired by Tony Stark's JARVIS — featuring rea
 
 | Component | Technology |
 |---|---|
-| LLM | Claude Haiku (Anthropic API) |
-| Speech Recognition | Whisper (whisper-mic) |
-| Wake Word | OpenWakeWord (`hey_jarvis`) |
-| Voice Verification | Resemblyzer |
-| Text to Speech | ElevenLabs |
-| Music | Spotipy (Spotify API) |
-| Web Search | DuckDuckGo Search |
+| LLM | Claude Haiku (`claude-haiku-4-5-20251001`) |
+| Speech-to-Text | Faster Whisper (`small.en`, CPU, int8) |
+| Wake Word | OpenWakeWord (`hey_jarvis_v0.1.onnx`) |
+| Speaker Verification | Resemblyzer |
+| TTS (Primary) | ElevenLabs (`eleven_v3`) |
+| TTS (Fallback) | Kokoro (`hexgrad/Kokoro-82M`) |
+| Music | Spotipy (Spotify Web API) |
+| Web Search | DDGS (DuckDuckGo) |
 | Audio I/O | PyAudio |
 
 ---
@@ -38,16 +38,19 @@ A voice-activated AI assistant inspired by Tony Stark's JARVIS — featuring rea
 ## Project Structure
 
 ```
-Jarvis/
-├── main.py                  # Core loop — wake word, voice verification, conversation mode
-├── jarvis_spotify.py        # Spotify wrapper and tool definitions
-├── jarvis_voice.py          # ElevenLabs TTS
-├── jarvis_recognition.py    # Resemblyzer speaker verification
-├── jarvis_system.py         # PC control and system automation
-├── jarvis_calendar.py       # Calendar integration
-├── jarvis_email.py          # Email integration
+J.A.R.V.I.S/
+├── main.py                  # Entry point
+├── Jarvis.py                # Core loop — wake word, voice verification, conversation mode, tool dispatch
+├── jarvis_spotify.py        # Spotify playback and search tools
+├── jarvis_voice.py          # ElevenLabs TTS with Kokoro fallback
+├── jarvis_system.py         # System tools — open/close apps, volume control
+├── jarvis_web_access.py     # DuckDuckGo search and browser control
+├── jarvis_wakeword.py       # Wake word model download utility
+├── voice_recognition.py     # Resemblyzer speaker verification
+├── models/                  # OpenWakeWord .onnx model files
+├── audio recordings/        # Voice enrollment WAV samples
 ├── .env                     # API keys (not committed)
-└── my_voice.npy             # Voice embedding (not committed)
+└── my_voice.npy             # Speaker embedding (not committed)
 ```
 
 ---
@@ -57,7 +60,7 @@ Jarvis/
 ### Prerequisites
 
 - Python 3.12
-- WSL2 (Ubuntu 20.04) or Linux
+- Linux (or WSL2 on Windows)
 - Spotify Premium (required for playback control)
 
 ### Installation
@@ -65,69 +68,67 @@ Jarvis/
 ```bash
 git clone https://github.com/Fataled/jarvis.git
 cd jarvis
-python3.12 -m venv venv
-source venv/bin/activate
+python3.12 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
 ### Environment Variables
 
-Create a `.env` file:
+Create a `.env` file in the project root:
 
 ```
 ANTHROPIC_API_KEY=your_key
+ELEVENLABS_API_KEY=your_key
 SPOTIFY_ID=your_spotify_client_id
 SPOTIFY_SECRET=your_spotify_client_secret
 SPOTIFY_REDIRECT_URI=http://127.0.0.1:8888/callback
-ELEVENLABS_API_KEY=your_key
 HF_TOKEN=your_huggingface_token
+```
+
+### Wake Word Models
+
+Download the required OpenWakeWord ONNX models into the `models/` directory:
+
+```bash
+mkdir -p models
+wget -P models https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/hey_jarvis_v0.1.onnx
+wget -P models https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/embedding_model.onnx
+wget -P models https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/melspectrogram.onnx
 ```
 
 ### Voice Enrollment
 
-Record 5-10 short clips of your voice and place them in a folder, then run the enrollment script to generate your voice embedding:
-
-```bash
-python enroll.py --samples ./my_samples
-```
-
-This generates `my_voice.npy` which is used for speaker verification on every interaction.
-
-### Wake Word Models
-
-Download the required OpenWakeWord models into your project directory:
-
-```bash
-wget https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/hey_jarvis_v0.1.onnx
-wget https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/embedding_model.onnx
-wget https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/melspectrogram.onnx
-```
+Record 5–10 short WAV clips of your voice and place them in the `audio recordings/` folder. On first run, `VoiceRecognition` will automatically generate `my_voice.npy` from those samples.
 
 ---
 
 ## Usage
 
 ```bash
-source venv/bin/activate
+source .venv/bin/activate
 python main.py
 ```
 
-Say **"Hey Jarvis"** to activate. Jarvis will verify your voice and enter conversation mode. Say *"that's all"* or *"goodbye"* to dismiss and return to passive listening.
+Say **"Hey Jarvis"** to activate. Jarvis verifies your voice and enters conversation mode. Conversation times out after **10 seconds** of inactivity. Say a farewell phrase to dismiss early.
 
 ### Example Commands
 
 - *"Play Blinding Lights by The Weeknd"*
-- *"What's on my calendar tomorrow?"*
-- *"Send an email to John saying the meeting is at 3pm"*
-- *"Open Rider"*
+- *"Pause the music"*
+- *"Turn the volume up a bit"*
+- *"Set the volume to 50"*
+- *"Open Firefox"*
 - *"Search for the latest news on AI"*
+- *"Read my active file"*
+- *"That's all, Jarvis"*
 
 ---
 
 ## Roadmap
 
+- [ ] Arduino/WebSocket support for hardware integration
 - [ ] Twilio integration for SMS and calls
-- [ ] Google Contacts lookup
 - [ ] Weather API
 - [ ] Multi-device WebSocket server — run Jarvis brain on a server, connect from any device
 - [ ] Camera/vision via Claude's vision API
@@ -136,6 +137,7 @@ Say **"Hey Jarvis"** to activate. Jarvis will verify your voice and enter conver
 
 ## Notes
 
-- Spotify Premium is required for playback control via the Spotify API
-- ElevenLabs free tier (~10k credits/month) is sufficient for personal use
+- Spotify Premium is required for playback control via the Spotify Web API
+- ElevenLabs free tier (~10k characters/month) is sufficient for light personal use; Kokoro handles the fallback silently
 - ALSA warnings on WSL2 are cosmetic and do not affect functionality
+- Speaker verification threshold is set to `0.60` cosine similarity — adjust in `Jarvis.py` if needed

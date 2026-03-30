@@ -1,8 +1,12 @@
 from Jarvis import Jarvis
+from jarvis_system import stop_recording
 
 def main():
     jarvis = Jarvis()
-    jarvis.jarvis_loop()
+    try:
+        jarvis.jarvis_loop()
+    finally:
+        stop_recording()
 
 if __name__ == '__main__':
     main()

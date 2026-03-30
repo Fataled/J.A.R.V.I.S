@@ -33,9 +33,11 @@ class JarvisSpotify:
            Returns:
                Confirmation that the song is playing
            """
+        devices = self.spotify.devices()["devices"]
+        if devices:
+            device_id = devices[0]["id"]
+            self.spotify.start_playback(device_id=device_id, uris=[uri])
 
-        self.spotify.add_to_queue(uri)
-        self.spotify.next_track()
 
 
 
@@ -88,9 +90,18 @@ def clear_and_play(song_name: str, artist_name: str = None) -> str:
 def play(song_name: str, artist_name: str = None) -> str:
     """Play a song on Spotify."""
     track = spotify_client._find_track(song_name, artist_name)
+    import time
     if track:
-        spotify_client.play(track["uri"])
-        return f"Now playing {track['name']} by {track['artist']}"
+        for attempt in range(5):
+            try:
+                spotify_client.play(track["uri"])
+                return f"now playing {track['name']} by {track['artist']}"
+            except Exception as e:
+                if "NO_ACTIVE_DEVICE" in str(e):
+                    time.sleep(2)  # wait for Spotify to finish loading
+                else:
+                    raise
+        return "Spotify never became active"
     return "Track not found"
 
 @beta_tool
