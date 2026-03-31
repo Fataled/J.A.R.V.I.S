@@ -2,7 +2,9 @@ import os
 import sys
 import subprocess
 import time
-
+from pycaw.pycaw import  AudioUtilities, IAudioEndpointVolume
+from comtypes import CLSCTX_ALL
+from ctypes import cast, POINTER
 from anthropic import beta_tool
 import threading
 import json
@@ -10,7 +12,7 @@ import psutil
 import GPUtil
 
 class JarvisSystem:
-    CLIPS_DIR = "/home/brumeako/Videos/JarvisClips/"
+    CLIPS_DIR = os.path.expanduser("~/Videos/JarvisClips/")
 
     PROCESS_BLACKLIST = {
         "systemd", "dbus", "pipewire", "wireplumber",
@@ -26,23 +28,28 @@ class JarvisSystem:
     def __init__(self):
         self.os = sys.platform
         self.processes = {}
-        result = subprocess.run(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"], capture_output=True, text=True)
-        self.muted = "MUTED" in result.stdout
+        self.muted = False
         self.recorder = None
-        self.protected_pids = {os.getpid()}  # add recorder pid after it starts
-        self.recording_thread = threading.Thread(target=self.start_recording, daemon=True)
+        self.protected_pids = {os.getpid()}
+        self.CLIPS_DIR = os.path.expanduser("~/Videos/JarvisClips/")
+        os.makedirs(self.CLIPS_DIR, exist_ok=True)
+
+        if self.os == "linux":
+            result = subprocess.run(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"], capture_output=True, text=True)
+            self.muted = "MUTED" in result.stdout
+            self.recording_thread = threading.Thread(target=self.start_recording_linux, daemon=True)
+        elif self.os == "win32":
+            self.recording_thread = threading.Thread(target=self.start_recording_windows, daemon=True)
+            self.device = AudioUtilities.GetSpeakers()
+            self.interface = self.device.Acivate(
+                IAudioEndpointVolume._iid_, CLSCTX_ALL, None
+            )
+            self.volume = cast(self.interface, POINTER(IAudioEndpointVolume))
+
         self.recording_thread.start()
 
-    @staticmethod
-    def get_focused_monitor():
-        result = subprocess.run(["hyprctl", "monitors", "-j"], capture_output=True, text=True)
-        if not result.stdout.strip():
-            return "DP-2"
-        try:
-            monitors = json.loads(result.stdout)
-            return next((m["name"] for m in monitors if m["focused"]), "DP-2")
-        except json.JSONDecodeError:
-            return "DP-2"
+    def get_os(self):
+        return self.os
 
     def open_app(self, app: str):
         print(f"Attempting to open: '{app}' OS: {self.os}")
@@ -60,40 +67,6 @@ class JarvisSystem:
         if app in self.processes:
             self.processes[app].kill()
             del self.processes[app]
-
-    def set_volume_linux(self, volume: float):
-        subprocess.run(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", f"{volume}%"])
-
-    def adjust_volume_linux(self, volume: float):
-        subprocess.run(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", f"+{volume}"])
-
-    def mute(self):
-        subprocess.run(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"])
-        self.muted = not self.muted
-
-    def start_recording(self):
-        monitor = self.get_focused_monitor()
-        self.recorder = subprocess.Popen(
-            ["wf-recorder", "-o", monitor, "-c", "h264_nvenc", "-f", "/tmp/jarvis_recording.mp4"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
-        self.protected_pids.add(self.recorder.pid)
-
-    def jarvis_clip_that(self, filename: str):
-        output_path = os.path.join(JarvisSystem.CLIPS_DIR, f"{filename}.mp4")
-        subprocess.run([
-            "ffmpeg", "-sseof", "-30",
-            "-i", "/tmp/jarvis_recording.mp4",
-            "-c", "copy",
-            "-y",
-            output_path,
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return output_path
-
-    def stop_recording(self):
-        if hasattr(self, "recorder"):
-            self.recorder.terminate()
 
     def is_protected(self, proc: psutil.Process):
         try:
@@ -127,6 +100,88 @@ class JarvisSystem:
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
 
+    @staticmethod
+    def set_volume_linux(volume: float):
+        subprocess.run(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", f"{volume}%"])
+
+    @staticmethod
+    def adjust_volume_linux(volume: float):
+        subprocess.run(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", f"+{volume}"])
+
+    def set_volume_windows(self, volume: float):
+        self.volume.SetMasterVolumeLevelScalar(volume / 100, None)
+
+    def adjust_volume_windows(self, volume: float):
+        current = self.volume.GetMasterVolumeLevelScalar()
+        new = max(0.0, min(1.0, current + (volume / 100)))
+        self.volume.SetMasterVolumeLevelScalar(new, None)
+
+    def mute_windows(self):
+        self.muted = not self.muted
+        self.volume.SetMute(self.muted, None)
+
+    def mute_linux(self):
+        subprocess.run(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"])
+        self.muted = not self.muted
+
+    @staticmethod
+    def get_encoder():
+        # try GPU first, fall back to CPU
+        result = subprocess.run(["ffmpeg", "-encoders"], capture_output=True, text=True)
+        if "h264_nvenc" in result.stdout:
+            return "h264_nvenc"
+        elif "h264_amf" in result.stdout:  # AMD
+            return "h264_amf"
+        else:
+            return "libx264"
+
+    @staticmethod
+    def get_focused_monitor():
+        result = subprocess.run(["hyprctl", "monitors", "-j"], capture_output=True, text=True)
+        if not result.stdout.strip():
+            return "DP-2"
+        try:
+            monitors = json.loads(result.stdout)
+            return next((m["name"] for m in monitors if m["focused"]), "DP-2")
+        except json.JSONDecodeError:
+            return "DP-2"
+
+    def start_recording_linux(self):
+        monitor = self.get_focused_monitor()
+        encoder = self.get_encoder()
+        self.recorder = subprocess.Popen(
+            ["wf-recorder", "-o", monitor, "-c", encoder, "-f", "/tmp/jarvis_recording.mp4"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        self.protected_pids.add(self.recorder.pid)
+
+    def start_recording_windows(self):
+        encoder = self.get_encoder()
+        fps = "30" if encoder == "libx264" else "60"
+        self.recorder = subprocess.Popen(
+            ["ffmpeg", "-f", "gdigrab", "-framerate", fps, "-i", "desktop",
+             "-c:v", encoder, "-preset", "ultrafast",
+             "-y", os.path.join(os.environ.get("TEMP", "/tmp"), "jarvis_recording.mp4")],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        self.protected_pids.add(self.recorder.pid)
+
+    def jarvis_clip_that(self, filename: str):
+        temp_file = os.path.join(os.environ.get("TEMP", "/tmp"), "jarvis_recording.mp4")
+        output_path = os.path.join(self.CLIPS_DIR, f"{filename}.mp4")
+        subprocess.run([
+            "ffmpeg", "-sseof", "-30",
+            "-i", temp_file,
+            "-c", "copy",
+            "-y", output_path,
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return output_path
+
+    def stop_recording(self):
+        if hasattr(self, "recorder"):
+            self.recorder.terminate()
 
 
 system = JarvisSystem()
@@ -160,7 +215,7 @@ def close_app(app: str):
         return f"Failed to close {app}"
 
 @beta_tool
-def set_volume_linux(volume: float):
+def set_volume(volume: float):
     """Set the system volume to a specific level.
     Args:
         volume: The volume level to set (0-100)
@@ -168,13 +223,16 @@ def set_volume_linux(volume: float):
         Confirmation that the volume was changed
     """
     try:
-        system.set_volume_linux(volume)
+        if system.os == "linux":
+            system.set_volume_linux(volume)
+        elif system.os == "win32":
+            system.set_volume_windows(volume)
         return f"Successfully changed volume to {volume}"
     except Exception:
         return f"Failed to change to {volume}"
 
 @beta_tool
-def adjust_volume_linux(volume: float):
+def adjust_volume(volume: float):
     """Adjust the system volume up or down by a relative amount.
     Args:
         volume: The amount to adjust the volume by, positive to increase, negative to decrease
@@ -182,7 +240,10 @@ def adjust_volume_linux(volume: float):
         Confirmation that the volume was adjusted
     """
     try:
-        system.adjust_volume_linux(volume)
+        if system.os == "linux":
+            system.adjust_volume_linux(volume)
+        elif system.os == "win32":
+            system.adjust_volume_windows(volume)
         return f"Successfully changed volume by {volume}"
     except Exception:
         return f"Failed to change by {volume}"
@@ -194,10 +255,15 @@ def mute():
         Confirmation that the audio was muted or unmuted
     """
     try:
-        system.mute()
-        return f"Successfully muted"
+        if system.os == "linux":
+            system.mute_linux()
+        elif system.os == "win32":
+            system.mute_windows()
+        else:
+            return f"Failed due to os issue {system.os}"
+        return "Successfully toggled mute"
     except Exception:
-        return f"Failed to mute"
+        return "Failed to mute"
 
 @beta_tool
 def read_active_file() -> str:
@@ -206,7 +272,8 @@ def read_active_file() -> str:
         The file path and contents of the active file
     """
     try:
-        return open("/tmp/jarvis_active_file").read()
+        path = os.path.join(os.environ.get("TEMP", "/tmp"), "jarvis_active_file") if system.os == "win32" else "/tmp/jarvis_active_file"
+        return open(path).read()
     except FileNotFoundError:
         return "No file currently open in IDE"
 
