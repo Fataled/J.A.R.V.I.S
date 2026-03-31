@@ -387,7 +387,7 @@ def network_speed():
 
 
 def stop_recording():
-    """Stop recording the last 30 seconds.
+    """Stop recording software
     Returns:
     """
     try:

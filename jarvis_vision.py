@@ -35,7 +35,7 @@ class JarvisVision:
     def get_id(self, filename):
         try:
             resp = self.client.beta.files.with_raw_response.upload(
-                file=Path(filename),
+                file=Path(f"{filename}.jpg"),
             )
             data = resp.parse()
             self.img_ids.update({data.filename: data.id})
@@ -56,7 +56,7 @@ class JarvisVision:
                         "type": "image",
                         "source": {
                             "type": "file",
-                            "file_id": f"{img_id}"
+                            "file_id": f"{self.img_ids.get(f"{filename}.jpg")}",
                         }
                     },
                     {
@@ -113,7 +113,7 @@ def capture_and_analyze(filename: str, message: str):
 def main():
     vision = JarvisVision()
     vision.take_picture("Hi")
-    vision.get_id()
+    vision.get_id("Hi")
     print(vision.analyze_image("analyze this"))
 
 if __name__ == '__main__':

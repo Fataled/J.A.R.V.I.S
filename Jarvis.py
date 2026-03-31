@@ -193,6 +193,7 @@ class Jarvis:
         audio_buffer = deque(maxlen=50)
 
         self.voice.speak("Up and ready, sir")
+        print("up and ready")
 
         while True:
             if not self.CONVERSATION_MODE:
