@@ -1,6 +1,7 @@
 import json
 import time
 from pathlib import Path
+
 from dotenv import load_dotenv
 import os
 import torch
@@ -15,9 +16,8 @@ from voice_recognition import VoiceRecognition
 from collections import deque
 from faster_whisper import WhisperModel
 from jarvis_system import set_volume, adjust_volume, close_app, open_app, mute, read_active_file, jarvis_clip_that, get_system_status, network_speed
-from jarvis_git import commit, status, push, pull
+from jarvis_git import commit, status, push
 from jarvis_weather import weather_data
-from jarvis_vision import capture_and_analyze
 
 
 class Jarvis:
@@ -108,8 +108,6 @@ class Jarvis:
             "commit": commit,
             "push": push,
             "weather_data": weather_data,
-            "capture_and_analyze": capture_and_analyze,
-            "pull": pull
 
         }
 
@@ -165,8 +163,7 @@ class Jarvis:
                 max_tokens=256,
                 tools=self.tools,
                 system=Jarvis.SYSTEM_PROMPT,
-                messages=messages, # send full history, slice handled below
-
+                messages=messages  # send full history, slice handled below
             )
 
             if response.stop_reason == "end_turn":
@@ -194,7 +191,6 @@ class Jarvis:
         audio_buffer = deque(maxlen=50)
 
         self.voice.speak("Up and ready, sir")
-        print("up and ready")
 
         while True:
             if not self.CONVERSATION_MODE:
