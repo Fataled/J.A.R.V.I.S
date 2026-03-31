@@ -41,10 +41,7 @@ class JarvisSystem:
         elif self.os == "win32":
             self.recording_thread = threading.Thread(target=self.start_recording_windows, daemon=True)
             self.device = AudioUtilities.GetSpeakers()
-            self.interface = self.device.Acivate(
-                IAudioEndpointVolume._iid_, CLSCTX_ALL, None
-            )
-            self.volume = cast(self.interface, POINTER(IAudioEndpointVolume))
+            self.volume = self.device.EndpointVolume
 
         self.recording_thread.start()
 

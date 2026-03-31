@@ -1,6 +1,4 @@
 import time
-from os import wait
-
 from dotenv import load_dotenv
 import os
 from jarvis_spotify import play, pause, resume, currently_playing, clear_and_play
@@ -13,7 +11,7 @@ import numpy as np
 from voice_recognition import VoiceRecognition
 from collections import deque
 from faster_whisper import WhisperModel
-from jarvis_system import set_volume_linux, adjust_volume_linux, close_app, open_app, mute, read_active_file, jarvis_clip_that, get_system_status, network_speed
+from jarvis_system import set_volume, adjust_volume, close_app, open_app, mute, read_active_file, jarvis_clip_that, get_system_status, network_speed
 
 
 class Jarvis:
@@ -86,8 +84,8 @@ class Jarvis:
             "stop_listening": self.stop_listening,
             "open_app": open_app,
             "close_app": close_app,
-            "set_volume_linux": set_volume_linux,
-            "adjust_volume_linux": adjust_volume_linux,
+            "set_volume": set_volume,
+            "adjust_volume": adjust_volume,
             "mute": mute,
             "read_active_file": read_active_file,
             "jarvis_clip_that": jarvis_clip_that,
