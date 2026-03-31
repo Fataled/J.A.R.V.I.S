@@ -15,12 +15,15 @@ __pycache__/
 # Audio recordings
 audio recordings/
 
+memory.json
+
 # ML Models
 models/
 *.npy
 
 # Cache
 .cache
+
 
 # IDE / Editor
 .idea/
