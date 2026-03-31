@@ -53,7 +53,7 @@ J.A.R.V.I.S/
 ├── .env                     # API keys (not committed)
 ├── my_voice.npy             # Speaker embedding (not committed)
 ├── jarvis_git.py            # Git access specifically for this repo
-├── 
+├── jarvis_weather.py        # Weather api access for jarvis
 └── 
 ```
 
@@ -135,7 +135,6 @@ Say **"Hey Jarvis"** to activate. Jarvis verifies your voice and enters conversa
 
 - [ ] Arduino/WebSocket support for hardware integration
 - [ ] Twilio integration for SMS and calls
-- [ ] Weather API
 - [ ] Multi-device WebSocket server — run Jarvis brain on a server, connect from any device
 - [ ] Camera/vision via Claude's vision API
 - [ ] Run tests and report results
