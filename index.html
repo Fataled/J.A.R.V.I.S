@@ -1,0 +1,59 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>FastAPI Mic Access</title>
+</head>
+<body>
+    <h1>Microphone Access with FastAPI</h1>
+    <button onclick="startMicrophone()">Start Microphone & Connect</button>
+    <p id="status">Status: Disconnected</p>
+
+    <script>
+        let socket;
+        let mediaRecorder;
+
+        async function startMicrophone() {
+            try {
+                // Request microphone access using the MediaDevices API
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                document.getElementById('status').textContent = 'Status: Microphone access granted, connecting to server...';
+
+                // Set up WebSocket connection to your FastAPI backend
+                socket = new WebSocket('ws://127.0.0.1:8000/ws/audio');
+
+                socket.onopen = () => {
+                    document.getElementById('status').textContent = 'Status: Connected to WebSocket, streaming audio...';
+                    // Start recording the stream
+                    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+                    mediaRecorder.addEventListener('dataavailable', (event) => {
+                        if (event.data.size > 0 && socket.readyState === WebSocket.OPEN) {
+                            socket.send(event.data); // Send audio chunks to FastAPI
+                        }
+                    });
+                    mediaRecorder.start(250); // Start recording, emit data every 250ms
+                };
+
+                socket.onmessage = (event) => {
+                    console.log('Message from server:', event.data);
+                };
+
+                socket.onclose = () => {
+                    document.getElementById('status').textContent = 'Status: Disconnected';
+                    mediaRecorder.stop();
+                };
+
+                socket.onerror = (error) => {
+                    console.error('WebSocket Error:', error);
+                    document.getElementById('status').textContent = 'Status: Connection error';
+                };
+
+            } catch (err) {
+                console.error(`You got an error: ${err}`);
+                document.getElementById('status').textContent = 'Status: Microphone access denied or error: ' + err.message;
+                alert('Need permission to use the microphone.');
+            }
+        }
+    </script>
+</body>
+</html>
