@@ -16,8 +16,8 @@ A voice-activated AI assistant inspired by Tony Stark's JARVIS — featuring rea
 - 🧠 **Claude Haiku Brain** — Fast, intelligent responses with native tool use via the Anthropic API
 - 💬 **Conversation Mode** — Sustained dialogue after wake word with automatic 10-second timeout
 - 📄 **Active File Reading** — Read the currently open file in your IDE via `/tmp/jarvis_active_file`
--    **Git usage** — Take the current repo and either git status, commit, or push
--    **JARVIS CLIP THAT** — Jarvis can clip the last 30 sec of the currently active monitor
+- 💾 **Git usage** — Take the current repo and either git status, commit, or push
+- 🔴 **JARVIS CLIP THAT** — Jarvis can clip the last 30 sec of the currently active monitor
 ---
 
 ## Tech Stack
@@ -46,7 +46,6 @@ J.A.R.V.I.S/
 ├── jarvis_voice.py          # ElevenLabs TTS with Kokoro fallback
 ├── jarvis_system.py         # System tools — open/close apps, volume control
 ├── jarvis_web_access.py     # DuckDuckGo search and browser control
-├── jarvis_wakeword.py       # Wake word model download utility
 ├── voice_recognition.py     # Resemblyzer speaker verification
 ├── models/                  # OpenWakeWord .onnx model files
 ├── audio recordings/        # Voice enrollment WAV samples
@@ -54,6 +53,7 @@ J.A.R.V.I.S/
 ├── my_voice.npy             # Speaker embedding (not committed)
 ├── jarvis_git.py            # Git access specifically for this repo
 ├── jarvis_weather.py        # Weather api access for jarvis
+├── jarvis_vision.py         # Vision for jarvis in this case taking a pic then analyzing it 
 └── 
 ```
 
@@ -70,7 +70,7 @@ J.A.R.V.I.S/
 ### Installation
 
 ```bash
-git clone https://github.com/Fataled/jarvis.git
+git clone https://github.com/Fataled/J.A.R.V.I.S.git
 cd jarvis
 python3.12 -m venv .venv
 source .venv/bin/activate
@@ -128,12 +128,12 @@ Say **"Hey Jarvis"** to activate. Jarvis verifies your voice and enters conversa
 - *"Read my active file"*
 - *"That's all, Jarvis"*
 - *"Commit all files with the message auth bug fixed*
-
+- *'What's the weather in Toronto'*
 ---
 
 ## Roadmap
 
-- [ ] Arduino/WebSocket support for hardware integration
+- [ ] WebSocket support for hardware integration (AWS bedrock maybe)
 - [ ] Twilio integration for SMS and calls
 - [ ] Multi-device WebSocket server — run Jarvis brain on a server, connect from any device
 - [ ] Camera/vision via Claude's vision API
@@ -141,6 +141,7 @@ Say **"Hey Jarvis"** to activate. Jarvis verifies your voice and enters conversa
 - [ ] Analysis of images in real time
 - [ ] Using shazam with a command
 - [ ] Hopefully once spotify releases a.i. made playlists the ability to make those
+
 ---
 
 ## Notes

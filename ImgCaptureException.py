@@ -1,0 +1,2 @@
+class ImgCaptureException(Exception):
+    pass

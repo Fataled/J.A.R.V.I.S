@@ -1,0 +1,2 @@
+class ImgIdException(Exception):
+    pass

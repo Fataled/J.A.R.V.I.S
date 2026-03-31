@@ -7,7 +7,7 @@ import threading
 import json
 import psutil
 import GPUtil
-#from pycaw.utils import AudioUtilities
+from pycaw.utils import AudioUtilities
 
 
 class JarvisSystem:
@@ -208,8 +208,8 @@ def open_app(app: str):
     try:
         system.open_app(app)
         return f"Successfully opened {app}"
-    except Exception:
-        return f"Failed to open {app}"
+    except Exception as e:
+        return f"Failed to open {app} due to {e}"
 
 @beta_tool
 def close_app(app: str):
@@ -225,8 +225,8 @@ def close_app(app: str):
         else:
             system.kill_process(app)
             return f"Successfully closed app not opened by me: {app}"
-    except Exception:
-        return f"Failed to close {app}"
+    except Exception as e:
+        return f"Failed to close {app} due to {e}"
 
 @beta_tool
 def set_volume(volume: float):
@@ -242,8 +242,8 @@ def set_volume(volume: float):
         elif system.os == "win32":
             system.set_volume_windows(volume)
         return f"Successfully changed volume to {volume}"
-    except Exception:
-        return f"Failed to change to {volume}"
+    except Exception as e:
+        return f"Failed to change to {volume} due to {e}"
 
 @beta_tool
 def adjust_volume(volume: float):
@@ -259,8 +259,8 @@ def adjust_volume(volume: float):
         elif system.os == "win32":
             system.adjust_volume_windows(volume)
         return f"Successfully changed volume by {volume}"
-    except Exception:
-        return f"Failed to change by {volume}"
+    except Exception as e:
+        return f"Failed to change by {volume} due to {e}"
 
 @beta_tool
 def mute():
@@ -276,8 +276,8 @@ def mute():
         else:
             return f"Failed due to os issue {system.os}"
         return "Successfully toggled mute"
-    except Exception:
-        return "Failed to mute"
+    except Exception as e:
+        return f"Failed to mute due to {e}"
 
 @beta_tool
 def read_active_file() -> str:
@@ -288,8 +288,8 @@ def read_active_file() -> str:
     try:
         path = os.path.join(os.environ.get("TEMP", "/tmp"), "jarvis_active_file") if system.os == "win32" else "/tmp/jarvis_active_file"
         return open(path).read()
-    except FileNotFoundError:
-        return "No file currently open in IDE"
+    except FileNotFoundError as e:
+        return f"No file currently open in IDE due to {e}"
 
 @beta_tool
 def jarvis_clip_that(filename: str):

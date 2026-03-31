@@ -36,6 +36,7 @@ class JarvisGit:
         result = subprocess.run(["git", "push"], capture_output=True, text=True)
         return result.stdout or result.stderr
 
+
 git = JarvisGit()
 
 @beta_tool
@@ -47,8 +48,8 @@ def status():
     """
     try:
         return git.status()
-    except:
-        "Failed to get status"
+    except Exception as e:
+        f"Failed to get status due to {e}"
 
 @beta_tool
 def commit(message: str, all=True, specific_files: list = None):
@@ -64,8 +65,8 @@ def commit(message: str, all=True, specific_files: list = None):
   """
   try:
     return git.commit(message, all, specific_files)
-  except:
-      return "Failed to commit"
+  except Exception as e:
+      return f"Failed to commit due to {e}"
 
 @beta_tool
 def push():
@@ -76,5 +77,5 @@ def push():
     """
     try:
         return git.push()
-    except:
-        return "Failed to push"
+    except Exception as e:
+        return f"Failed to push due to {e}"
