@@ -2,7 +2,6 @@ import os
 import sys
 import subprocess
 import time
-from pycaw.pycaw import  AudioUtilities
 from anthropic import beta_tool
 import threading
 import json
@@ -62,6 +61,21 @@ class JarvisSystem:
         if app in self.processes:
             self.processes[app].kill()
             del self.processes[app]
+            return True
+        else:
+            return False
+
+    def kill_process(self, name: str):
+        killed = []
+        for proc in psutil.process_iter(['pid', 'name']):
+            try:
+                if name.lower() in proc.name().lower():
+                    if not self.is_protected(proc):
+                        proc.kill()
+                        killed.append(proc.name())
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        return killed
 
     def is_protected(self, proc: psutil.Process):
         try:
@@ -204,8 +218,11 @@ def close_app(app: str):
         Confirmation that the app was closed
     """
     try:
-        system.close_app(app)
-        return f"Successfully closed {app}"
+        if system.close_app(app):
+            return f"Successfully closed that was opened by me: {app}"
+        else:
+            system.kill_process(app)
+            return f"Successfully closed app not opened by me: {app}"
     except Exception:
         return f"Failed to close {app}"
 
@@ -392,6 +409,8 @@ def close_all_except(keep: list[str]):
         return f"Successfully close all apps: {keep}"
     except Exception as e:
         return f"Failed to close all apps: {e}"
+
+
 
 
 
