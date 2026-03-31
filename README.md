@@ -16,22 +16,23 @@ A voice-activated AI assistant inspired by Tony Stark's JARVIS — featuring rea
 - 🧠 **Claude Haiku Brain** — Fast, intelligent responses with native tool use via the Anthropic API
 - 💬 **Conversation Mode** — Sustained dialogue after wake word with automatic 10-second timeout
 - 📄 **Active File Reading** — Read the currently open file in your IDE via `/tmp/jarvis_active_file`
-
+-    **Git usage** — Take the current repo and either git status, commit, or push
+-    **JARVIS CLIP THAT** — Jarvis can clip the last 30 sec of the currently active monitor
 ---
 
 ## Tech Stack
 
-| Component | Technology |
-|---|---|
-| LLM | Claude Haiku (`claude-haiku-4-5-20251001`) |
-| Speech-to-Text | Faster Whisper (`small.en`, CPU, int8) |
-| Wake Word | OpenWakeWord (`hey_jarvis_v0.1.onnx`) |
-| Speaker Verification | Resemblyzer |
-| TTS (Primary) | ElevenLabs (`eleven_v3`) |
-| TTS (Fallback) | Kokoro (`hexgrad/Kokoro-82M`) |
-| Music | Spotipy (Spotify Web API) |
-| Web Search | DDGS (DuckDuckGo) |
-| Audio I/O | PyAudio |
+| Component            | Technology                                 |
+|----------------------|--------------------------------------------|
+| LLM                  | Claude Haiku (`claude-haiku-4-5-20251001`) |
+| Speech-to-Text       | Faster Whisper (`small.en`, CPU, int8)     |
+| Wake Word            | OpenWakeWord (`hey_jarvis_v0.1.onnx`)      |
+| Speaker Verification | Resemblyzer                                |
+| TTS (Primary)        | ElevenLabs (`eleven_v3`)                   |
+| TTS (Fallback)       | Kokoro (`hexgrad/Kokoro-82M`)              |
+| Music                | Spotipy (Spotify Web API)                  |
+| Web Search           | DDGS (DuckDuckGo)                          |
+| Audio I/O            | PyAudio                                    |
 
 ---
 
@@ -50,7 +51,10 @@ J.A.R.V.I.S/
 ├── models/                  # OpenWakeWord .onnx model files
 ├── audio recordings/        # Voice enrollment WAV samples
 ├── .env                     # API keys (not committed)
-└── my_voice.npy             # Speaker embedding (not committed)
+├── my_voice.npy             # Speaker embedding (not committed)
+├── jarvis_git.py            # Git access specifically for this repo
+├── 
+└── 
 ```
 
 ---
@@ -60,7 +64,7 @@ J.A.R.V.I.S/
 ### Prerequisites
 
 - Python 3.12
-- Linux (or WSL2 on Windows)
+- Linux or Windows
 - Spotify Premium (required for playback control)
 
 ### Installation
@@ -84,6 +88,7 @@ SPOTIFY_ID=your_spotify_client_id
 SPOTIFY_SECRET=your_spotify_client_secret
 SPOTIFY_REDIRECT_URI=http://127.0.0.1:8888/callback
 HF_TOKEN=your_huggingface_token
+OPENWEATHER_API_KEY=your_weather_api_key
 ```
 
 ### Wake Word Models
@@ -100,7 +105,7 @@ wget -P models https://github.com/dscripka/openWakeWord/releases/download/v0.5.1
 ### Voice Enrollment
 
 Record 5–10 short WAV clips of your voice and place them in the `audio recordings/` folder. On first run, `VoiceRecognition` will automatically generate `my_voice.npy` from those samples.
-
+Preferably of you saying the wake work throughout the day and in different environments.
 ---
 
 ## Usage
@@ -122,6 +127,7 @@ Say **"Hey Jarvis"** to activate. Jarvis verifies your voice and enters conversa
 - *"Search for the latest news on AI"*
 - *"Read my active file"*
 - *"That's all, Jarvis"*
+- *"Commit all files with the message auth bug fixed*
 
 ---
 
@@ -132,7 +138,10 @@ Say **"Hey Jarvis"** to activate. Jarvis verifies your voice and enters conversa
 - [ ] Weather API
 - [ ] Multi-device WebSocket server — run Jarvis brain on a server, connect from any device
 - [ ] Camera/vision via Claude's vision API
-
+- [ ] Run tests and report results
+- [ ] Analysis of images in real time
+- [ ] Using shazam with a command
+- [ ] Hopefully once spotify releases a.i. made playlists the ability to make those
 ---
 
 ## Notes

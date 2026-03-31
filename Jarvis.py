@@ -13,7 +13,8 @@ from voice_recognition import VoiceRecognition
 from collections import deque
 from faster_whisper import WhisperModel
 from jarvis_system import set_volume, adjust_volume, close_app, open_app, mute, read_active_file, jarvis_clip_that, get_system_status, network_speed
-from jarvis_git import commit, status
+from jarvis_git import commit, status, push
+from jarvis_weather import weather_data
 
 
 class Jarvis:
@@ -98,6 +99,9 @@ class Jarvis:
             #"close_all_except": close_all_except,
             "status": status,
             "commit": commit,
+            "push": push,
+            "weather_data": weather_data,
+
         }
 
         self.tools = [fn.to_dict() for fn in self.tool_map.values() if hasattr(fn, "to_dict")]

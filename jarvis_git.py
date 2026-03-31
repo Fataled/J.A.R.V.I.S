@@ -31,6 +31,10 @@ class JarvisGit:
         else:
             return "Didn't specify what files to commit"
 
+    @staticmethod
+    def push():
+        result = subprocess.run(["git", "push"], capture_output=True, text=True)
+        return result.stdout or result.stderr
 
 git = JarvisGit()
 
@@ -62,3 +66,15 @@ def commit(message: str, all=True, specific_files: list = None):
     return git.commit(message, all, specific_files)
   except:
       return "Failed to commit"
+
+@beta_tool
+def push():
+    """
+    runs git push
+    Returns:
+        Whether the push was successful or not
+    """
+    try:
+        return git.push()
+    except:
+        return "Failed to push"
