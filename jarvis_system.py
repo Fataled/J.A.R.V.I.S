@@ -7,6 +7,8 @@ import threading
 import json
 import psutil
 import GPUtil
+#from pycaw.utils import AudioUtilities
+
 
 class JarvisSystem:
     CLIPS_DIR = os.path.expanduser("~/Videos/JarvisClips/")
@@ -50,7 +52,7 @@ class JarvisSystem:
         try:
             if self.os == "linux":
                 proc = subprocess.Popen([app.lower()])
-            elif self.os == "windows":
+            elif self.os == "win32":
                 proc = subprocess.Popen(f"start {app}", shell=True)
             self.processes[app] = proc
             return f"Opened {app} with PID {proc.pid}"
