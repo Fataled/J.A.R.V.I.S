@@ -9,7 +9,7 @@ class VoiceRecognition:
         if Path("my_voice.npy").exists():
             self.speaker_embedding = np.load("my_voice.npy")
         else:
-            self.wavs = [preprocess_wav(p) for p in Path("audio recordings").glob("*.wav")]
+            self.wavs = [preprocess_wav(p) for p in Path("audio recordings").glob("j*.wav")]
             self.embeddings = [self.encoder.embed_utterance(wav) for wav in self.wavs]
 
             for i, e1 in enumerate(self.embeddings):

@@ -1,4 +1,7 @@
+import json
 import time
+from pathlib import Path
+
 from dotenv import load_dotenv
 import os
 import torch
@@ -77,7 +80,11 @@ class Jarvis:
         self.stream = self.p.open(format=Jarvis.FORMAT, channels=Jarvis.CHANNELS, rate=Jarvis.RATE, input=True, frames_per_buffer=Jarvis.CHUNK)
         self.MAX_HISTORY = 7
         self.CONVERSATION_MODE = False
-        self.message_history = []
+        if Path("memory.json").exists():
+            self.message_history = json.load(open("memory.json"))
+        else:
+            self.message_history = []
+            json.dump(self.message_history, open("memory.json", "w"))
         self.tool_map = {
             "clear_and_play": clear_and_play,
             "play": play,
@@ -225,6 +232,7 @@ class Jarvis:
                 self.message_history.append({"role": "user", "content": result})
                 query = self.run_with_tools(self.message_history[-self.MAX_HISTORY:])
                 self.message_history.append({"role": "assistant", "content": query})
+                json.dump(self.message_history, open("memory.json", "w"))
 
                 print(query)
                 self.voice.speak(query)
