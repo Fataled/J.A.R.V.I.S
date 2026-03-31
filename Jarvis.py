@@ -1,6 +1,7 @@
 import time
 from dotenv import load_dotenv
 import os
+import torch
 from jarvis_spotify import play, pause, resume, currently_playing, clear_and_play
 from jarvis_web_access import search_web, aquire_links
 from anthropic import Anthropic
@@ -64,8 +65,10 @@ class Jarvis:
         load_dotenv()
         self.model = Model(wakeword_model_paths=["models/hey_jarvis_v0.1.onnx"])
         self.client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-        #self.mic = WhisperMic(model="base.en")
-        self.stt_model = WhisperModel("large-v3", device="cuda", compute_type="float16")
+        model = "large-v3" if torch.cuda.is_available() else "small.en"
+        device = "cude" if torch.cuda.is_available() else "cpu"
+        compute_type = "float16" if torch.cuda.is_available() else "int8"
+        self.stt_model = WhisperModel(model, device=device, compute_type=compute_type)
         self.voice_recognition = VoiceRecognition()
         self.voice = JarvisVoice()
         self.p = PyAudio()

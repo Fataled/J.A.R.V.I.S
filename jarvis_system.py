@@ -2,9 +2,7 @@ import os
 import sys
 import subprocess
 import time
-from pycaw.pycaw import  AudioUtilities, IAudioEndpointVolume
-from comtypes import CLSCTX_ALL
-from ctypes import cast, POINTER
+from pycaw.pycaw import  AudioUtilities
 from anthropic import beta_tool
 import threading
 import json
