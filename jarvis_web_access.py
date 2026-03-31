@@ -33,5 +33,5 @@ def search_web(website: str) -> str:
     try:
         webbrowser.open_new_tab(website)
         return "Success"
-    except Exception:
-        return "Failure"
+    except Exception as e:
+        return f"Failure due to {e}"

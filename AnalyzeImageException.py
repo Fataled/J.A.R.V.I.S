@@ -1,0 +1,2 @@
+class AnalyzeImageException(Exception):
+    pass

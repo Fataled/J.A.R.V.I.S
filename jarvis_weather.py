@@ -1,5 +1,5 @@
 import httpx
-from anthropic import beta_tool
+from anthropic import beta_tool, APIError
 import os
 from dotenv import load_dotenv
 
@@ -13,13 +13,14 @@ class JarvisWeather:
 
     def weather_request(self, location):
        with httpx.Client() as client:
-           geo = client.get(f"{self.geo_decoding_url}q={location}&limit=1&appid={self.api_key}")
-           print(geo.json())
-           geo_data = geo.json()[0]
-           print(geo_data)
-           response = client.get(f"{self.base_url}lat={geo_data["lat"]}&lon={geo_data["lon"]}&exclude=minutely,hourly,daily,alerts&appid={self.api_key}")
-           weather_data = response.json()
-           return weather_data
+           try:
+               geo = client.get(f"{self.geo_decoding_url}q={location}&limit=1&appid={self.api_key}")
+               geo_data = geo.json()[0]
+               response = client.get(f"{self.base_url}lat={geo_data["lat"]}&lon={geo_data["lon"]}&exclude=minutely,hourly,daily,alerts&appid={self.api_key}")
+               weather_data = response.json()
+               return weather_data
+           except Exception as e:
+               raise Exception(f"Failed to get weather data for {location} due to {e}")
 
 weather = JarvisWeather()
 

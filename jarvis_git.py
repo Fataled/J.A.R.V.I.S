@@ -36,11 +36,6 @@ class JarvisGit:
         result = subprocess.run(["git", "push"], capture_output=True, text=True)
         return result.stdout or result.stderr
 
-    @staticmethod
-    def pull():
-        result = subprocess.run(["git", "pull"], capture_output=True, text=True)
-        return result.stdout or result.stderr
-
 git = JarvisGit()
 
 @beta_tool
@@ -83,15 +78,3 @@ def push():
         return git.push()
     except:
         return "Failed to push"
-
-@beta_tool
-def pull():
-    """
-    runs git pull
-    Returns:
-        Whether the pull was successful or not
-    """
-    try:
-        return git.pull()
-    except Exception as e:
-        return f"Failed to pull due to {e}"

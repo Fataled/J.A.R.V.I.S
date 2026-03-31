@@ -109,21 +109,21 @@ def pause() -> str:
     try:
         spotify_client.pause()
         return f"Paused"
-    except:
-        return "An error occurred while pausing your music."
+    except Exception as e:
+        return f"An error occurred while pausing your music. reason {e}"
 
 @beta_tool
 def resume() -> str:
     try:
         spotify_client.resume()
         return f"Resumed"
-    except:
-        return "An error occurred while resuming your music."
+    except Exception as e:
+        return f"An error occurred while resuming your music. reason {e}"
 
 @beta_tool
 def currently_playing() -> str:
     try:
         playing = spotify_client.currently_playing()
         return f"Confirm to me whether music is currently playing or not using {playing}"
-    except:
-        return "Inform me that you just played in your usual manner."
+    except Exception as e:
+        return f"Inform me that you just played in your usual manner. reason {e}"
