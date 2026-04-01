@@ -1,38 +1,83 @@
 # J.A.R.V.I.S
 > Just A Rather Very Intelligent System
 
-A voice-activated AI assistant inspired by Tony Stark's JARVIS — featuring real-time voice interaction, speaker verification, full PC control, and Spotify integration via the Claude and ElevenLabs APIs.
+A voice-activated AI assistant inspired by Tony Stark's JARVIS — featuring real-time voice interaction, full PC control, Spotify integration, and a WebSocket architecture that lets the brain run on a server while the client runs on any device.
 
 ---
 
 ## Features
 
-- 🎙️ **Wake Word Detection** — Passive listening for "Hey Jarvis" via OpenWakeWord
-- 🔒 **Speaker Verification** — Responds only to your voice using Resemblyzer cosine similarity
-- 🖥️ **System Control** — Open/close applications and control system volume (set, adjust, mute)
+- 🎙️ **Wake Word Detection** — Passive listening for "Hey Jarvis" via Vosk (lightweight, offline)
+- 🗣️ **Accurate Transcription** — Commands transcribed via Whisper after wake word detection
+- 🖥️ **System Control** — Open/close applications, volume control, system stats — executed on the client device
 - 🎵 **Spotify Control** — Play, pause, resume, and search tracks by name and artist
-- 🌐 **Web Access** — DuckDuckGo search and browser tab opening
-- 🔊 **Dual TTS** — ElevenLabs as primary voice; Kokoro (offline) as fallback when quota is exceeded
+- 🌐 **Web Access** — DuckDuckGo search and browser tab opening on the client device
+- 🔊 **TTS via Kokoro** — Offline voice synthesis using Kokoro (`bm_george` voice)
 - 🧠 **Claude Haiku Brain** — Fast, intelligent responses with native tool use via the Anthropic API
-- 💬 **Conversation Mode** — Sustained dialogue after wake word with automatic 10-second timeout
+- 💬 **Conversation Mode** — Sustained dialogue after wake word with silence-based timeout
 - 📄 **Active File Reading** — Read the currently open file in your IDE via `/tmp/jarvis_active_file`
-- 💾 **Git usage** — Take the current repo and either git status, commit, or push
-- 🔴 **JARVIS CLIP THAT** — Jarvis can clip the last 30 sec of the currently active monitor
+- 💾 **Git Integration** — Git status, commit, and push from voice
+- 🔴 **Clip That** — Clip the last 30 seconds of your active monitor on command
+- 🌤️ **Weather** — Real-time weather data via OpenWeather API
+- 🔌 **WebSocket Architecture** — Brain runs on a server; any device can connect as a client over the network
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────┐        ┌──────────────────────────────────┐
+│          SERVER                 │        │           CLIENT                 │
+│                                 │        │                                  │
+│  Jarvis.py — core brain         │◄──────►│  jarvis_client.py                │
+│  • Vosk wake word detection     │  WS    │  • Mic capture (PyAudio)         │
+│  • Whisper transcription        │        │  • Audio resampling (48k→16k)    │
+│  • Claude Haiku tool use        │        │  • TTS playback                  │
+│  • Spotify / Git / Weather      │        │  • System tool execution         │
+│                                 │        │  • Browser control               │
+│  websocket.py — FastAPI WS      │        │  • Volume / app control          │
+│  • Audio streaming              │        │                                  │
+│  • RPC tool dispatch            │        │                                  │
+│  • TTS chunked delivery         │        │                                  │
+└─────────────────────────────────┘        └──────────────────────────────────┘
+```
+
+### Tool Execution Model
+
+Tools are split into two categories:
+
+| Category | Examples | Runs On |
+|----------|----------|---------|
+| Server-side | Spotify, Git, Weather | Server (direct function call) |
+| Client-side | open_app, volume, system stats, browser | Client (RPC over WebSocket) |
+
+Claude receives schemas for all tools. When a client-side tool is called, the server sends a `tool_call` JSON frame to the client, the client executes it locally and returns a `tool_result` frame, and the server continues the Claude tool loop with the result.
+
+### WebSocket Message Protocol
+
+```
+Audio:       binary frames (raw PCM int16, 16kHz mono)
+TTS chunk:   {"type": "tts",         "data": "<base64 PCM>"}
+TTS end:     {"type": "tts_end"}
+Tool call:   {"type": "tool_call",   "id": "abc123", "name": "open_app", "inputs": {...}}
+Tool result: {"type": "tool_result", "id": "abc123", "result": "..."}
+```
+
 ---
 
 ## Tech Stack
 
-| Component            | Technology                                 |
-|----------------------|--------------------------------------------|
-| LLM                  | Claude Haiku (`claude-haiku-4-5-20251001`) |
-| Speech-to-Text       | Faster Whisper (`small.en`, CPU, int8)     |
-| Wake Word            | OpenWakeWord (`hey_jarvis_v0.1.onnx`)      |
-| Speaker Verification | Resemblyzer                                |
-| TTS (Primary)        | ElevenLabs (`eleven_v3`)                   |
-| TTS (Fallback)       | Kokoro (`hexgrad/Kokoro-82M`)              |
-| Music                | Spotipy (Spotify Web API)                  |
-| Web Search           | DDGS (DuckDuckGo)                          |
-| Audio I/O            | PyAudio                                    |
+| Component       | Technology                                  |
+|-----------------|---------------------------------------------|
+| LLM             | Claude Haiku (`claude-haiku-4-5-20251001`)  |
+| Wake Word       | Vosk (`vosk-model-small-en-us-0.15`)        |
+| Transcription   | Whisper (`base`)                            |
+| TTS             | Kokoro (`bm_george`)                        |
+| Music           | Spotipy (Spotify Web API)                   |
+| Web Search      | DDGS (DuckDuckGo)                           |
+| Audio I/O       | PyAudio                                     |
+| Server          | FastAPI + Uvicorn + WebSockets              |
+| Audio Resample  | SciPy                                       |
 
 ---
 
@@ -40,21 +85,19 @@ A voice-activated AI assistant inspired by Tony Stark's JARVIS — featuring rea
 
 ```
 J.A.R.V.I.S/
-├── main.py                  # Entry point
-├── Jarvis.py                # Core loop — wake word, voice verification, conversation mode, tool dispatch
-├── jarvis_spotify.py        # Spotify playback and search tools
-├── jarvis_voice.py          # ElevenLabs TTS with Kokoro fallback
-├── jarvis_system.py         # System tools — open/close apps, volume control
-├── jarvis_web_access.py     # DuckDuckGo search and browser control
-├── voice_recognition.py     # Resemblyzer speaker verification
-├── models/                  # OpenWakeWord .onnx model files
-├── audio recordings/        # Voice enrollment WAV samples
-├── .env                     # API keys (not committed)
-├── my_voice.npy             # Speaker embedding (not committed)
-├── jarvis_git.py            # Git access specifically for this repo
-├── jarvis_weather.py        # Weather api access for jarvis
-├── jarvis_vision.py         # Vision for jarvis in this case taking a pic then analyzing it 
-└── 
+├── websocket.py             # FastAPI WebSocket server — audio streaming, RPC dispatch
+├── jarvis_client.py         # Client — mic capture, TTS playback, local tool execution
+├── Jarvis.py                # Core brain — wake word, transcription, Claude tool loop
+├── jarvis_spotify.py        # Spotify playback and search tools (server-side)
+├── jarvis_voice.py          # Kokoro TTS
+├── jarvis_system.py         # System tools — apps, volume, stats, recording (client-side)
+├── jarvis_web_access.py     # DuckDuckGo search and browser control (client-side)
+├── jarvis_git.py            # Git tools — status, commit, push (server-side)
+├── jarvis_weather.py        # Weather API (server-side)
+├── models/
+│   └── vosk-small/          # Vosk model directory
+├── memory.json              # Persistent conversation history
+└── .env                     # API keys (not committed)
 ```
 
 ---
@@ -64,17 +107,26 @@ J.A.R.V.I.S/
 ### Prerequisites
 
 - Python 3.12
-- Linux or Windows
+- Linux (Arch recommended) or Windows
 - Spotify Premium (required for playback control)
+- Server and client can be the same machine or different devices on the same network
 
 ### Installation
 
 ```bash
 git clone https://github.com/Fataled/J.A.R.V.I.S.git
-cd jarvis
+cd J.A.R.V.I.S
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+```
+
+### Vosk Model
+
+```bash
+mkdir -p models/vosk-small
+wget https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
+unzip vosk-model-small-en-us-0.15.zip -d models/vosk-small
 ```
 
 ### Environment Variables
@@ -83,39 +135,32 @@ Create a `.env` file in the project root:
 
 ```
 ANTHROPIC_API_KEY=your_key
-ELEVENLABS_API_KEY=your_key
 SPOTIFY_ID=your_spotify_client_id
 SPOTIFY_SECRET=your_spotify_client_secret
 SPOTIFY_REDIRECT_URI=http://127.0.0.1:8888/callback
-HF_TOKEN=your_huggingface_token
 OPENWEATHER_API_KEY=your_weather_api_key
 ```
 
-### Wake Word Models
-
-Download the required OpenWakeWord ONNX models into the `models/` directory:
-
-```bash
-mkdir -p models
-wget -P models https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/hey_jarvis_v0.1.onnx
-wget -P models https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/embedding_model.onnx
-wget -P models https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/melspectrogram.onnx
-```
-
-### Voice Enrollment
-
-Record 5–10 short WAV clips of your voice and place them in the `audio recordings/` folder. On first run, `VoiceRecognition` will automatically generate `my_voice.npy` from those samples.
-Preferably of you saying the wake work throughout the day and in different environments.
 ---
 
 ## Usage
 
+### Start the server
+
 ```bash
 source .venv/bin/activate
-python main.py
+python websocket.py
 ```
 
-Say **"Hey Jarvis"** to activate. Jarvis verifies your voice and enters conversation mode. Conversation times out after **10 seconds** of inactivity. Say a farewell phrase to dismiss early.
+### Start the client (same machine or any device on the network)
+
+```bash
+# If running on a different machine, update WS_URL in jarvis_client.py
+# WS_URL = "ws://<server-ip>:8000/jarvis/ws"
+python jarvis_client.py
+```
+
+Say **"Hey Jarvis"** to activate. Jarvis enters conversation mode and listens until silence is detected. Say a farewell phrase to dismiss early.
 
 ### Example Commands
 
@@ -125,28 +170,30 @@ Say **"Hey Jarvis"** to activate. Jarvis verifies your voice and enters conversa
 - *"Set the volume to 50"*
 - *"Open Firefox"*
 - *"Search for the latest news on AI"*
+- *"What's my CPU and GPU doing?"*
 - *"Read my active file"*
+- *"Commit all files with the message auth bug fixed"*
+- *"What's the weather in Toronto?"*
+- *"Clip that"*
 - *"That's all, Jarvis"*
-- *"Commit all files with the message auth bug fixed*
-- *'What's the weather in Toronto'*
+
 ---
 
 ## Roadmap
 
-- [ ] WebSocket support for hardware integration (AWS bedrock maybe)
+- [ ] Speaker verification — respond only to enrolled voice
 - [ ] Twilio integration for SMS and calls
-- [ ] Multi-device WebSocket server — run Jarvis brain on a server, connect from any device
 - [ ] Camera/vision via Claude's vision API
+- [ ] Shazam integration
 - [ ] Run tests and report results
-- [ ] Analysis of images in real time
-- [ ] Using shazam with a command
-- [ ] Hopefully once spotify releases a.i. made playlists the ability to make those
+- [ ] Spotify AI playlist generation (pending Spotify API support)
 
 ---
 
 ## Notes
 
+- Mic capture runs at 48kHz (native USB mic rate) and is resampled to 16kHz before being sent to the server
+- TTS audio is delivered in 32KB chunks over the WebSocket and reassembled on the client before playback
+- Client-side tools execute locally on the client machine via a lightweight RPC protocol — the server never needs direct access to the client filesystem or hardware
+- The screen recorder rotates every 5 minutes to prevent unbounded file growth; clips always capture the last 30 seconds
 - Spotify Premium is required for playback control via the Spotify Web API
-- ElevenLabs free tier (~10k characters/month) is sufficient for light personal use; Kokoro handles the fallback silently
-- ALSA warnings on WSL2 are cosmetic and do not affect functionality
-- Speaker verification threshold is set to `0.60` cosine similarity — adjust in `Jarvis.py` if needed

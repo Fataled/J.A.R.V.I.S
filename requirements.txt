@@ -182,3 +182,5 @@ whisper_mic==1.4.4
 wrapt==2.1.2
 zipp==3.23.0
 fastapi
+vosk
+uvicorn

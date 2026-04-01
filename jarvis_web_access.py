@@ -1,8 +1,6 @@
 from ddgs import DDGS
-from anthropic import beta_tool
 import webbrowser
 
-@beta_tool
 def aquire_links(query: str) -> str:
     """Search the web for current information.
 
@@ -21,17 +19,16 @@ def aquire_links(query: str) -> str:
             output += f"Title: {r['title']}\nURL: {r['href']}\nSummary: {r['body']}\n\n"
         return output
 
-@beta_tool
-def search_web(website: str) -> str:
+def search_web(url: str) -> str:
     """
     Search the web for current information.
     Args:
-        website: The website we are searching
+        url: The website we are searching
     Returns:
         Confirmation of success or failure at opening web page
     """
     try:
-        webbrowser.open_new_tab(website)
+        webbrowser.open_new_tab(url)
         return "Success"
     except Exception as e:
         return f"Failure due to {e}"

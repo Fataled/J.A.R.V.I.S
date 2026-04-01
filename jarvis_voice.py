@@ -1,4 +1,4 @@
-from anthropic import APIError
+import numpy as np
 from elevenlabs.client import ElevenLabs
 from dotenv import load_dotenv
 import os
@@ -30,3 +30,13 @@ class JarvisVoice:
                 for _, _, audio in generator:
                     sd.play(audio, samplerate=24000)
                     sd.wait()
+
+    def TTS_bytes(self, text):
+        chunks = []
+        generator = self.pipeline(text=text, voice="bm_george")
+        for _, _, audio in generator:
+            chunks.append(audio)
+        if not chunks:
+            return b""
+        audio = np.concatenate(chunks)
+        return (audio * 32767).astype(np.int16).tobytes()
