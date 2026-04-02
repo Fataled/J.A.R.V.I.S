@@ -13,6 +13,7 @@ from jarvis_web_access import search_web, aquire_links
 from jarvis_vision import vision
 from jarvis_git import git
 import queue as stdlib_queue
+from tools import tools, tools_schema
 
 TOOL_HANDLERS = {
     "open_app":        lambda i: system.open_app(i["app"]),
@@ -33,6 +34,8 @@ TOOL_HANDLERS = {
     "commit": lambda i: git.commit(i["message"], i.get("all", True), i.get("specific_files", None)),
     "set_repo": lambda i: git.set_repo(i["repo"])
 }
+
+data = json.dumps({"tools": list(tools), "tools_schema": tools_schema})
 
 def execute_tool(name: str, inputs: dict) -> str:
     handler = TOOL_HANDLERS.get(name)
@@ -153,14 +156,16 @@ async def receive(ws):
                 }))
 
 async def connect_loop():
+    global p
     device_index = get_device_index(p, "USB PnP")
     while True:
-        stream = p.open(
-            format=pyaudio.paInt16, channels=1, rate=DEVICE_RATE,
-            input=True, input_device_index=device_index,
-            frames_per_buffer=CHUNK
-        )
+        stream = None
         try:
+            stream = p.open(
+                format=pyaudio.paInt16, channels=1, rate=DEVICE_RATE,
+                input=True, input_device_index=device_index,
+                frames_per_buffer=CHUNK
+            )
             async with websockets.connect(
                 WS_URL,
                 ping_interval=20,
@@ -168,6 +173,7 @@ async def connect_loop():
                 max_size=10 * 1024 * 1024
             ) as ws:
                 print("[Client] Connected")
+                await ws.send(json.dumps({"type": "setup", "tools": list(tools), "tools_schema": tools_schema}))
                 await asyncio.gather(
                     sender(ws),
                     send_chunks(ws, stream),
@@ -175,8 +181,19 @@ async def connect_loop():
                 )
         except Exception as e:
             print(f"[Client] Disconnected: {e}, retrying...")
-            stream.stop_stream()
-            stream.close()
+        finally:
+            if stream:
+                try:
+                    stream.stop_stream()
+                    stream.close()
+                except:
+                    pass
+            try:
+                p.terminate()
+            except:
+                pass
+            p = pyaudio.PyAudio()  # fresh instance
+            device_index = get_device_index(p, "USB PnP")  # re-resolve index on new instance
             await asyncio.sleep(2)
 
 if __name__ == "__main__":

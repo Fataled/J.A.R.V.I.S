@@ -199,6 +199,7 @@ Say **"Hey Jarvis"** to activate. Jarvis enters conversation mode and listens un
 - [ ] Shazam integration
 - [ ] Run tests and report results
 - [ ] Spotify AI playlist generation (pending Spotify API support)
+- [ ] Add a proactive mode where he speaks unprompted to give updates
 
 ---
 

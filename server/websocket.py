@@ -95,6 +95,9 @@ async def jarvis_ws(websocket: WebSocket):
                 if msg["type"] == "tool_result" and msg["id"] in pending:
                     print(f"[WS] resolving future {msg['id']}")
                     pending.pop(msg["id"]).set_result(msg["result"])
+                elif msg["type"] == "setup":
+                    print(f"[WS] {msg}")
+                    jarvis.set_client_tools(tools_schema=msg["tools_schema"], tools=msg["tools"])
 
     try:
         tasks = await asyncio.gather(

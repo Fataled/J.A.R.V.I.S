@@ -1,6 +1,10 @@
 from ddgs import DDGS
 import webbrowser
 
+from tools import tool
+
+
+@tool
 def aquire_links(query: str) -> str:
     """Search the web for current information.
 
@@ -19,6 +23,7 @@ def aquire_links(query: str) -> str:
             output += f"Title: {r['title']}\nURL: {r['href']}\nSummary: {r['body']}\n\n"
         return output
 
+@tool
 def search_web(url: str) -> str:
     """
     Search the web for current information.

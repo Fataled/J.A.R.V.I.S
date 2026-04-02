@@ -7,6 +7,8 @@ import threading
 import json
 import psutil
 import GPUtil
+
+from tools import tool
 #from pycaw.utils import AudioUtilities
 
 
@@ -31,6 +33,7 @@ class JarvisSystem:
         self.recorder = None
         self.protected_pids = {os.getpid()}
         self.CLIPS_DIR = os.path.expanduser("~/Videos/JarvisClips/")
+        self.working_dir = os.path.abspath(os.sep)
         os.makedirs(self.CLIPS_DIR, exist_ok=True)
 
         if self.os == "linux":
@@ -47,7 +50,16 @@ class JarvisSystem:
     def get_os(self):
         return self.os
 
+    @tool
     def open_app(self, app: str):
+        """
+        Opens an app on the users machine
+        Args:
+            app: name of the app to open
+
+        Returns:
+            Whether the app was opened or not
+        """
         print(f"Attempting to open: '{app}' OS: {self.os}")
         try:
             if self.os == "linux":
@@ -59,7 +71,17 @@ class JarvisSystem:
         except FileNotFoundError:
             raise Exception(f"Could not find application: {app}")
 
+    @tool
     def close_app(self, app: str):
+        """
+        Closes an app on the user's system
+        Args:
+            app: Name of the app
+
+        Returns:
+            Wheter the app was closed or not
+
+        """
         if app in self.processes:
             self.processes[app].kill()
             del self.processes[app]
@@ -67,7 +89,17 @@ class JarvisSystem:
         else:
             return False
 
+    @tool
     def kill_process(self, name: str):
+        """
+        More powerful close as it kills processes. Try to use close app first
+        Args:
+            name: name of the process to kill
+
+        Returns:
+            Wheter the process was killed
+
+        """
         killed = []
         for proc in psutil.process_iter(['pid', 'name']):
             try:
@@ -78,6 +110,7 @@ class JarvisSystem:
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
         return killed
+
 
     def is_protected(self, proc: psutil.Process):
         try:
@@ -111,27 +144,77 @@ class JarvisSystem:
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
 
+
     @staticmethod
+    @tool
     def set_volume_linux(volume: float):
-        subprocess.run(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", f"{volume}%"])
+        """
+        Sets the volume of unix based systems
+        Args:
+            volume: A number from 0 to 100
+
+        Returns:
+            Whether it was successful
+
+        """
+        result = subprocess.run(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", f"{volume}%"])
+        return result.stdout or result.stderr
 
     @staticmethod
+    @tool
     def adjust_volume_linux(volume: float):
-        subprocess.run(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", f"+{volume}"])
+        """
+        Adjust the volume by an ammount
+        Args:
+            volume: Either a positive or negative number
 
+        Returns:
+            Whether it was successful
+        """
+        result = subprocess.run(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", f"+{volume}"])
+        return result.stdout or result.stderr
+
+    @tool
     def set_volume_windows(self, volume: float):
+        """
+        Set the system volume on Windows.
+        Args:
+            volume: Volume level from 0 to 100
+        Returns:
+            Confirmation of volume being set
+        """
         self.volume.SetMasterVolumeLevelScalar(volume / 100, None)
 
+    @tool
     def adjust_volume_windows(self, volume: float):
+        """
+        Adjust the system volume up or down on Windows.
+        Args:
+            volume: Amount to adjust by, positive to increase, negative to decrease
+        Returns:
+            Confirmation of volume being adjusted
+        """
         current = self.volume.GetMasterVolumeLevelScalar()
         new = max(0.0, min(1.0, current + (volume / 100)))
         self.volume.SetMasterVolumeLevelScalar(new, None)
 
+    @tool
     def mute_windows(self):
+        """
+        Toggle mute on Windows.
+        Returns:
+            Confirmation of mute being toggled
+        """
         self.muted = not self.muted
         self.volume.SetMute(self.muted, None)
 
+    @tool
     def mute_linux(self):
+        """
+        Toggle mute on Linux.
+        Returns:
+            Confirmation of mute being toggled
+        """
         subprocess.run(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"])
         self.muted = not self.muted
 
@@ -141,7 +224,7 @@ class JarvisSystem:
         result = subprocess.run(["ffmpeg", "-encoders"], capture_output=True, text=True)
         if "h264_nvenc" in result.stdout:
             return "h264_nvenc"
-        elif "h264_amf" in result.stdout:  # AMD
+        elif "h264_amf" in result.stdout:
             return "h264_amf"
         else:
             return "libx264"
@@ -161,7 +244,6 @@ class JarvisSystem:
         monitor = self.get_focused_monitor()
         encoder = self.get_encoder()
         self._start_recorder(monitor, encoder)
-        # Start rotation thread
         threading.Thread(target=self._rotate_recording, daemon=True).start()
 
     def _start_recorder(self, monitor, encoder):
@@ -182,11 +264,19 @@ class JarvisSystem:
         monitor = self.get_focused_monitor()
         encoder = self.get_encoder()
         while True:
-            time.sleep(300)  # 5 minutes
+            time.sleep(300)
             print("[Recorder] Rotating recording file...")
             self._start_recorder(monitor, encoder)
 
+    @tool
     def jarvis_clip_that(self, filename: str):
+        """
+        Clip the last 30 seconds of screen recording and save it.
+        Args:
+            filename: Name to save the clip as
+        Returns:
+            The path the clip was saved to
+        """
         temp_file = os.path.join(os.environ.get("TEMP", "/tmp"), "jarvis_recording.mp4")
         output_path = os.path.join(self.CLIPS_DIR, f"{filename}.mp4")
         subprocess.run([
@@ -201,8 +291,10 @@ class JarvisSystem:
         if hasattr(self, "recorder"):
             self.recorder.terminate()
 
+    @tool
     def read_active_file(self) -> str:
-        """Read the currently active file open in the IDE.
+        """
+        Read the currently active file open in the IDE.
         Returns:
             The file path and contents of the active file
         """
@@ -221,10 +313,12 @@ class JarvisSystem:
                 return f"{bytes:.2f}{unit}{suffix}"
             bytes /= factor
 
+    @tool
     def get_system_status(self) -> str:
-        """Get the system status as a string.
+        """
+        Get CPU, RAM, disk, network, and GPU stats.
         Returns:
-            The system status as a string
+            System status as a formatted string
         """
         cpu_freq = psutil.cpu_freq()
         svmem = psutil.virtual_memory()
@@ -256,7 +350,6 @@ class JarvisSystem:
                     f"  {address}: {interface_name}: {address.address}, {address.netmask}, {address.broadcast}")
 
         net_info = "\n".join(net_data)
-
         net_speed = self.network_speed()
 
         return f"""CPU: {psutil.cpu_count(logical=False)} cores, {cpu_freq.current:.0f}MHz, {psutil.cpu_percent()}% usage
@@ -271,10 +364,12 @@ class JarvisSystem:
         {gpu_info}
         """
 
-
+    @tool
     def network_speed(self):
-        """Get the network speed of the system.
+        """
+        Get the current network upload and download speed.
         Returns:
+            Upload and download speeds as a formatted string
         """
         try:
             io = psutil.net_io_counters()

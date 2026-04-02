@@ -62,13 +62,7 @@ class Jarvis:
     SILENCE_RMS_THRESHOLD = 200
 
     # Tools that execute on the client machine via RPC
-    CLIENT_SIDE_TOOLS = {
-        "open_app", "close_app", "set_volume", "adjust_volume",
-        "mute", "get_system_status", "network_speed",
-        "read_active_file", "jarvis_clip_that",
-        "aquire_links", "search_web", "capture_and_analyze",
-        "push", "pull", "status", "commit"
-    }
+    CLIENT_SIDE_TOOLS = set()
 
     def __init__(self):
         load_dotenv()
@@ -129,184 +123,18 @@ class Jarvis:
         server_tools = [fn.to_dict() for fn in self.tool_map.values() if hasattr(fn, "to_dict")]
 
         # Client-side tools — schemas only, execution happens on client via RPC
-        client_tools = [
-            {
-                "name": "open_app",
-                "description": "Open an application on the user's machine.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "app": {"type": "string", "description": "The name or path of the application to open"}
-                    },
-                    "required": ["app"]
-                }
-            },
-            {
-                "name": "close_app",
-                "description": "Close a running application on the user's machine.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "app": {"type": "string", "description": "The name of the application to close"}
-                    },
-                    "required": ["app"]
-                }
-            },
-            {
-                "name": "set_volume",
-                "description": "Set the system volume to a specific level.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "volume": {"type": "number", "description": "Volume level from 0 to 100"}
-                    },
-                    "required": ["volume"]
-                }
-            },
-            {
-                "name": "adjust_volume",
-                "description": "Adjust the system volume up or down by a relative amount.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "volume": {"type": "number",
-                                   "description": "Amount to adjust by, positive to increase, negative to decrease"}
-                    },
-                    "required": ["volume"]
-                }
-            },
-            {
-                "name": "mute",
-                "description": "Toggle mute on the system audio.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {}
-                }
-            },
-            {
-                "name": "get_system_status",
-                "description": "Get CPU, RAM, disk, network, and GPU stats from the user's machine.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {}
-                }
-            },
-            {
-                "name": "network_speed",
-                "description": "Get the current network upload and download speed.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {}
-                }
-            },
-            {
-                "name": "read_active_file",
-                "description": "Read the currently active file open in the IDE.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {}
-                }
-            },
-            {
-                "name": "jarvis_clip_that",
-                "description": "Clip the last 30 seconds of screen recording and save it.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "filename": {"type": "string", "description": "Name to save the clip as"}
-                    },
-                    "required": ["filename"]
-                }
-            },
-            {
-                "name": "aquire_links",
-                "description": "Get the link to a url based of a query",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "query": {"type": "string", "description": "What the user wants to search for"}
-                    },
-                    "required": ["query"]
-                }
-            },
-            {
-                "name": "search_web",
-                "description": "Open a browser page and open the given url",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "url": {"type": "string", "description": "Given url to seacrh/open"}
-                    },
-                    "required": ["url"]
-                }
-            },
-        {
-            "name": "capture_and_analyze",
-            "description": "Take a picture using the camera and then analyze what it shows",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "filename": {"type": "string", "description": "name for the file"},
-                "message": {"type": "string", "description": "The message to prompt the llm"}
-            },
-            "required": ["filename", "message"]
-        }
-        },
-            {
-                "name": "push",
-                "description": "Git push current commit in the current working dir.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {}
-                }
-            },
-            {
-                "name": "commit",
-                "description": "Git commit the current working dir",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "all": {"type": "boolean", "description": "whether to commit all files"},
-                        "message": {"type": "string", "description": "The message to prompt the llm"},
-                        "specific_files": {"type": "list", "description": "List of all the names of the files to commit"}
-                    },
-                    "required": ["message"]
-                }
-            },
-            {
-                "name": "pull",
-                "description": "Git pull current commit in the current working dir.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {}
-                }
-            },
-            {
-                "name": "status",
-                "description": "Git status for the currentg working dir.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {}
-                }
-            },
-            {
-                "name": "set_repo",
-                "description": "Point the jarvis to the location of the .git of the wanted project",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "repo": {"type": "string", "description": "Name of the dir/repo"}
-                    },
-                    "required": ["repo"]
-                }
-            },
-
-        ]
+        client_tools = []
 
         self.tools = server_tools + client_tools
         print("Tools ready.")
 
     # ----------------- Helpers -----------------
+    def set_client_tools(self, tools_schema, tools: list):
+        print(tools_schema)
+        print(tools)
+
+        self.tools = tools_schema
+        Jarvis.CLIENT_SIDE_TOOLS = set(tools)
 
     def _rms(self, chunk: bytes) -> float:
         audio = np.frombuffer(chunk, dtype=np.int16).astype(np.float32)
@@ -419,7 +247,7 @@ class Jarvis:
 
     # ----------------- Command Handler -----------------
 
-    async def _handle_command(self, text: str, now: float) -> bytes:
+    async def _handle_command(self, text: str, now: float, extras: str = "") -> bytes:
         if self._is_farewell(text):
             self.stop_listening()
             return self.voice.TTS_bytes("Goodbye, sir.")
@@ -429,7 +257,7 @@ class Jarvis:
 
         loop = asyncio.get_running_loop()
         print("[Jarvis] Calling Anthropic...")
-        query = await asyncio.to_thread(self.run_with_tools, self.message_history, loop)
+        query = await asyncio.to_thread(self.run_with_tools, self.message_history, loop, extras)
         print(f"[Jarvis] Anthropic returned: {query}")
 
         self.message_history.append({"role": "assistant", "content": query})
@@ -443,7 +271,7 @@ class Jarvis:
 
     # ----------------- Tool Loop -----------------
 
-    def run_with_tools(self, messages: list, loop: asyncio.AbstractEventLoop) -> str:
+    def run_with_tools(self, messages: list, loop: asyncio.AbstractEventLoop, extras: str = "") -> str:
         messages = list(messages)
         try:
             while True:
@@ -451,7 +279,7 @@ class Jarvis:
                     model="claude-haiku-4-5-20251001",
                     max_tokens=512,
                     tools=self.tools,
-                    system=self.SYSTEM_PROMPT,
+                    system=self.SYSTEM_PROMPT + extras,
                     messages=messages
                 )
                 print(f"[Anthropic] stop_reason: {response.stop_reason}")

@@ -1,5 +1,5 @@
 from pathlib import Path
-from anthropic import beta_tool, Anthropic
+from anthropic import Anthropic
 import cv2 as cv
 from dotenv import load_dotenv
 import os
@@ -7,7 +7,7 @@ import os
 from AnalyzeImageException import AnalyzeImageException
 from ImageIdError import ImgIdException
 from ImgCaptureException import ImgCaptureException
-
+from tools import tool
 
 class JarvisVision:
     def __init__(self, SystemPrompt: str = ''):
@@ -77,8 +77,16 @@ class JarvisVision:
         except Exception as e:
             raise AnalyzeImageException(f"Failed to analyze the image due to {e}")
 
-
+    @tool
     def capture_and_analyze(self, filename: str, message: str):
+        """
+        Take a picture using the camera and analyze what it shows.
+        Args:
+            filename: Name to save the captured image as
+            message: The question or prompt to analyze the image with
+        Returns:
+            Analysis of the captured image
+        """
         try:
             self.take_picture(filename)
             self.get_id(filename)
