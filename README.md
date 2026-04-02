@@ -46,10 +46,10 @@ A voice-activated AI assistant inspired by Tony Stark's JARVIS — featuring rea
 
 Tools are split into two categories:
 
-| Category | Examples | Runs On |
-|----------|----------|---------|
-| Server-side | Spotify, Git, Weather | Server (direct function call) |
-| Client-side | open_app, volume, system stats, browser | Client (RPC over WebSocket) |
+| Category | Examples                                                                | Runs On |
+|----------|-------------------------------------------------------------------------|---------|
+| Server-side | Spotify, Weather                                                        | Server (direct function call) |
+| Client-side | open_app, volume, system stats, browser, git, analyzing captured photos | Client (RPC over WebSocket) |
 
 Claude receives schemas for all tools. When a client-side tool is called, the server sends a `tool_call` JSON frame to the client, the client executes it locally and returns a `tool_result` frame, and the server continues the Claude tool loop with the result.
 
@@ -85,19 +85,30 @@ Tool result: {"type": "tool_result", "id": "abc123", "result": "..."}
 
 ```
 J.A.R.V.I.S/
-├── websocket.py             # FastAPI WebSocket server — audio streaming, RPC dispatch
-├── jarvis_client.py         # Client — mic capture, TTS playback, local tool execution
-├── Jarvis.py                # Core brain — wake word, transcription, Claude tool loop
-├── jarvis_spotify.py        # Spotify playback and search tools (server-side)
-├── jarvis_voice.py          # Kokoro TTS
-├── jarvis_system.py         # System tools — apps, volume, stats, recording (client-side)
-├── jarvis_web_access.py     # DuckDuckGo search and browser control (client-side)
-├── jarvis_git.py            # Git tools — status, commit, push (server-side)
-├── jarvis_weather.py        # Weather API (server-side)
-├── models/
-│   └── vosk-small/          # Vosk model directory
-├── memory.json              # Persistent conversation history
-└── .env                     # API keys (not committed)
+├── client/
+│   ├── jarvis_git.py            # Git tools — status, commit, push
+│   ├── jarvis_system.py         # System tools — apps, volume, stats, recording
+│   ├── jarvis_vision.py         # Screen capture and image analysis
+│   ├── jarvis_web_access.py     # DuckDuckGo search and browser control
+│   ├── main.py                  # Client entry — mic capture, TTS playback, local tool execution
+│   ├── requirements.txt
+│   └── .env
+├── server/
+│   ├── models/                  # Vosk model directory
+│   ├── Jarvis.py                # Core brain — wake word, transcription, Claude tool loop
+│   ├── jarvis_spotify.py        # Spotify playback and search tools
+│   ├── jarvis_voice.py          # Kokoro TTS
+│   ├── jarvis_weather.py        # Weather API
+│   ├── memory.json              # Persistent conversation history
+│   ├── voice_recognition.py     # Wake word and STT pipeline
+│   ├── websocket.py             # FastAPI WebSocket server — audio streaming, RPC dispatch
+│   ├── requirements.txt
+│   └── .env
+├── audio recordings/
+├── Dockerfile
+├── .dockerignore
+├── .gitignore
+└── README.md
 ```
 
 ---
@@ -118,6 +129,7 @@ git clone https://github.com/Fataled/J.A.R.V.I.S.git
 cd J.A.R.V.I.S
 python3.12 -m venv .venv
 source .venv/bin/activate
+cd into client and sever and run in both
 pip install -r requirements.txt
 ```
 
@@ -183,7 +195,7 @@ Say **"Hey Jarvis"** to activate. Jarvis enters conversation mode and listens un
 
 - [ ] Speaker verification — respond only to enrolled voice
 - [ ] Twilio integration for SMS and calls
-- [ ] Camera/vision via Claude's vision API
+- [X] Camera/vision via Claude's vision API
 - [ ] Shazam integration
 - [ ] Run tests and report results
 - [ ] Spotify AI playlist generation (pending Spotify API support)

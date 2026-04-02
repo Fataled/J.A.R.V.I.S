@@ -11,6 +11,7 @@ import websockets
 from jarvis_system import system # the JarvisSystem instance
 from jarvis_web_access import search_web, aquire_links
 from jarvis_vision import vision
+from jarvis_git import git
 import queue as stdlib_queue
 
 TOOL_HANDLERS = {
@@ -26,6 +27,11 @@ TOOL_HANDLERS = {
     "aquire_links": lambda i: aquire_links(i["query"]),
     "search_web": lambda i: search_web(i["url"]),
     "capture_and_analyze": lambda i: vision.capture_and_analyze(i["filename"], i["message"]),
+    "push": lambda i: git.push(),
+    "pull": lambda i: git.pull(),
+    "status": lambda i: git.status(),
+    "commit": lambda i: git.commit(i["message"], i.get("all", True), i.get("specific_files", None)),
+    "set_repo": lambda i: git.set_repo(i["repo"])
 }
 
 def execute_tool(name: str, inputs: dict) -> str:

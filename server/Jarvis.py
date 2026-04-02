@@ -14,7 +14,6 @@ import whisper
 from jarvis_voice import JarvisVoice
 from jarvis_spotify import play, pause, resume, currently_playing, clear_and_play
 from anthropic import Anthropic
-from jarvis_git import commit, status, push
 from jarvis_weather import weather_data
 
 
@@ -67,7 +66,8 @@ class Jarvis:
         "open_app", "close_app", "set_volume", "adjust_volume",
         "mute", "get_system_status", "network_speed",
         "read_active_file", "jarvis_clip_that",
-        "aquire_links", "search_web", "capture_and_analyze"
+        "aquire_links", "search_web", "capture_and_analyze",
+        "push", "pull", "status", "commit"
     }
 
     def __init__(self):
@@ -123,9 +123,6 @@ class Jarvis:
             "pause": pause,
             "resume": resume,
             "currently_playing": currently_playing,
-            "commit": commit,
-            "status": status,
-            "push": push,
             "weather_data": weather_data,
         }
 
@@ -255,6 +252,54 @@ class Jarvis:
             "required": ["filename", "message"]
         }
         },
+            {
+                "name": "push",
+                "description": "Git push current commit in the current working dir.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "commit",
+                "description": "Git commit the current working dir",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "all": {"type": "boolean", "description": "whether to commit all files"},
+                        "message": {"type": "string", "description": "The message to prompt the llm"},
+                        "specific_files": {"type": "list", "description": "List of all the names of the files to commit"}
+                    },
+                    "required": ["message"]
+                }
+            },
+            {
+                "name": "pull",
+                "description": "Git pull current commit in the current working dir.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "status",
+                "description": "Git status for the currentg working dir.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {}
+                }
+            },
+            {
+                "name": "set_repo",
+                "description": "Point the jarvis to the location of the .git of the wanted project",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "repo": {"type": "string", "description": "Name of the dir/repo"}
+                    },
+                    "required": ["repo"]
+                }
+            },
 
         ]
 
