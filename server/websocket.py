@@ -55,11 +55,12 @@ async def jarvis_ws(websocket: WebSocket):
     audio_queue: asyncio.Queue = asyncio.Queue()
 
     async def audio_processor():
-        """Processes audio chunks and queues responses — never blocks the receiver."""
         while True:
             chunk = await audio_queue.get()
             resp = await jarvis.process_audio(chunk)
+
             if isinstance(resp, bytes) and resp:
+                # Wake word / farewell — already fully generated, just send it
                 chunk_size = 32 * 1024
                 for i in range(0, len(resp), chunk_size):
                     await send_queue.put((json.dumps({
@@ -67,6 +68,13 @@ async def jarvis_ws(websocket: WebSocket):
                         "data": base64.b64encode(resp[i:i + chunk_size]).decode()
                     }), True))
                 await send_queue.put((json.dumps({"type": "tts_end"}), True))
+
+            elif isinstance(resp, str) and resp:
+                for pcm_chunk in jarvis.voice.TTS_stream(resp):
+                    print(f"[server] sending TTS chunk {len(pcm_chunk)} bytes")
+                    await send_queue.put((pcm_chunk, False))
+                print("[server] sending sentinel")
+                await send_queue.put((b"\x00", False))
 
     async def receiver():
         while True:

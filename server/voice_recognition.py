@@ -6,10 +6,10 @@ class VoiceRecognition:
 
     def __init__(self):
         self.encoder = VoiceEncoder()
-        if Path("my_voice.npy").exists():
-            self.speaker_embedding = np.load("my_voice.npy")
+        if Path("../my_voice.npy").exists():
+            self.speaker_embedding = np.load("../my_voice.npy")
         else:
-            self.wavs = [preprocess_wav(p) for p in Path("audio recordings").glob("j*.wav")]
+            self.wavs = [preprocess_wav(p) for p in Path("../audio recordings").glob("j*.wav")]
             self.embeddings = [self.encoder.embed_utterance(wav) for wav in self.wavs]
 
             for i, e1 in enumerate(self.embeddings):
@@ -18,7 +18,7 @@ class VoiceRecognition:
                     print(f"Clip {i} vs Clip {j}: {sim:.3f}")
 
             self.speaker_embedding = np.mean(self.embeddings, axis=0)
-            np.save("my_voice.npy", self.speaker_embedding)
+            np.save("../my_voice.npy", self.speaker_embedding)
 
     def compare(self, audio_input):
         #print(f"Input shape: {audio_input.shape}, min: {audio_input.min()}, max: {audio_input.max()}")

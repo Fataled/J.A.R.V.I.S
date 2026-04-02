@@ -1,0 +1,15 @@
+anthropic==0.88.0
+elevenlabs==2.41.0
+fastapi==0.135.2
+httpx==0.28.1
+kokoro==0.9.4
+numpy==2.4.4
+openai-whisper==20250625
+pyaudio==0.2.14
+python-dotenv==1.2.2
+resemblyzer==0.1.4
+sounddevice==0.5.5
+spotipy==2.26.0
+uvicorn==0.42.0
+vosk==0.3.45
+websockets==16.0

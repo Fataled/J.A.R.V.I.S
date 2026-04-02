@@ -46,8 +46,6 @@ class JarvisVision:
         if filename is None:
             filename = self.latest_capture_name
 
-        img_id = self.img_ids.get(filename)
-
         data = [
             {
                 "role": "user",
@@ -80,35 +78,22 @@ class JarvisVision:
             raise AnalyzeImageException(f"Failed to analyze the image due to {e}")
 
 
-
-
+    def capture_and_analyze(self, filename: str, message: str):
+        try:
+            self.take_picture(filename)
+            self.get_id(filename)
+            return self.analyze_image(message, filename)
+        except ImgCaptureException as e:
+            return f"Failed to capture picture due to {e}"
+        except ImgIdException as e:
+            return f"Failed to upload picture due to {e}"
+        except AnalyzeImageException as e:
+            return f"Failed to analyze the image due to {e}"
+        except Exception as e:
+            return f"Failed at unkown step due to {e}"
 
 
 vision = JarvisVision()
-
-@beta_tool
-def capture_and_analyze(filename: str, message: str):
-    """
-    Take a picture using the users camera then analyze it and return base off the prompt
-    Args:
-        filename: The filename for when saving and when getting the img from a dict
-        message: The message used when prompting
-
-    Returns:
-        Wether the method was successful or not
-    """
-    try:
-        vision.take_picture(filename)
-        vision.get_id()
-        vision.analyze_image(message, filename)
-    except ImgCaptureException as e:
-        return f"Failed to capture picture due to {e}"
-    except ImgIdException as e:
-        return f"Failed to upload picture due to {e}"
-    except AnalyzeImageException as e:
-        return f"Failed to analyze the image due to {e}"
-    except Exception as e:
-        return f"Failed at unkown step due to {e}"
 
 def main():
     vision = JarvisVision()

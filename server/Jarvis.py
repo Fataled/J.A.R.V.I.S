@@ -67,14 +67,14 @@ class Jarvis:
         "open_app", "close_app", "set_volume", "adjust_volume",
         "mute", "get_system_status", "network_speed",
         "read_active_file", "jarvis_clip_that",
-        "aquire_links", "search_web"
+        "aquire_links", "search_web", "capture_and_analyze"
     }
 
     def __init__(self):
         load_dotenv()
 
         print("Loading Vosk model...")
-        self.vosk_model = VoskModel("models/vosk-small/vosk-model-small-en-us-0.15")
+        self.vosk_model = VoskModel("../models/vosk-small/vosk-model-small-en-us-0.15")
         self.recognizer = KaldiRecognizer(self.vosk_model, self.RATE)
         print("Vosk ready.")
 
@@ -116,7 +116,7 @@ class Jarvis:
         print("Memory ready.")
 
         print("Loading tools...")
-        # Server-side tools — run locally on the server
+        # server-side tools — run locally on the server
         self.tool_map = {
             "clear_and_play": clear_and_play,
             "play": play,
@@ -243,6 +243,18 @@ class Jarvis:
                     "required": ["url"]
                 }
             },
+        {
+            "name": "capture_and_analyze",
+            "description": "Take a picture using the camera and then analyze what it shows",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "filename": {"type": "string", "description": "name for the file"},
+                "message": {"type": "string", "description": "The message to prompt the llm"}
+            },
+            "required": ["filename", "message"]
+        }
+        },
 
         ]
 

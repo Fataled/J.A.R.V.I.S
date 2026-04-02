@@ -40,3 +40,23 @@ class JarvisVoice:
             return b""
         audio = np.concatenate(chunks)
         return (audio * 32767).astype(np.int16).tobytes()
+
+    def TTS_stream(self, text, chunk_size_ms=200):
+        """Yield PCM in ~200ms batches instead of one tiny chunk at a time."""
+        samples_per_batch = int(24000 * chunk_size_ms / 1000)  # 4800 samples @ 200ms
+        buffer = []
+        total_samples = 0
+
+        for _, _, audio in self.pipeline(text=text, voice="bm_george"):
+            buffer.append(audio)
+            total_samples += len(audio)
+            if total_samples >= samples_per_batch:
+                combined = np.concatenate(buffer)
+                yield (combined * 32767).astype(np.int16).tobytes()
+                buffer = []
+                total_samples = 0
+
+        # flush remainder
+        if buffer:
+            combined = np.concatenate(buffer)
+            yield (combined * 32767).astype(np.int16).tobytes()
