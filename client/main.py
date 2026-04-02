@@ -58,7 +58,7 @@ def playback_thread():
     out_stream = None
     while True:
         chunk = playback_queue.get()
-        print(f"[Playback] got chunk: {chunk if chunk is None else f'{len(chunk)} bytes'}")
+        #print(f"[Playback] got chunk: {chunk if chunk is None else f'{len(chunk)} bytes'}")
         # blocks until data arrives
         if chunk is None:
             if out_stream:
@@ -100,9 +100,14 @@ async def send_chunks(ws, stream):
     from scipy.signal import resample
     while True:
         if is_playing:
-            await asyncio.sleep(0.05)  # back off while playing
+            await asyncio.sleep(0.05)
             continue
-        chunk = await asyncio.to_thread(stream.read, CHUNK, exception_on_overflow=False)
+        try:
+            chunk = await asyncio.to_thread(stream.read, CHUNK, exception_on_overflow=False)
+        except Exception as e:
+            print(f"[Audio] Stream error: {e}, waiting...")
+            await asyncio.sleep(0.1)
+            continue
         audio = np.frombuffer(chunk, dtype=np.int16).astype(np.float32)
         resampled = resample(audio, TARGET_RATE * CHUNK // DEVICE_RATE)
         data = np.clip(resampled, -32768, 32767).astype(np.int16).tobytes()
@@ -113,6 +118,7 @@ async def send_chunks(ws, stream):
 async def receive(ws):
     while True:
         message = await ws.recv()
+        #print("[Client] Received message")
 
         if isinstance(message, bytes):
             if message == b"\x00":
@@ -142,12 +148,12 @@ async def receive(ws):
 
 async def connect_loop():
     device_index = get_device_index(p, "USB PnP")
-    stream = p.open(
-        format=pyaudio.paInt16, channels=1, rate=DEVICE_RATE,
-        input=True, input_device_index=device_index,
-        frames_per_buffer=CHUNK
-    )
     while True:
+        stream = p.open(
+            format=pyaudio.paInt16, channels=1, rate=DEVICE_RATE,
+            input=True, input_device_index=device_index,
+            frames_per_buffer=CHUNK
+        )
         try:
             async with websockets.connect(
                 WS_URL,
@@ -163,6 +169,8 @@ async def connect_loop():
                 )
         except Exception as e:
             print(f"[Client] Disconnected: {e}, retrying...")
+            stream.stop_stream()
+            stream.close()
             await asyncio.sleep(2)
 
 if __name__ == "__main__":

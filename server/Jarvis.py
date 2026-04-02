@@ -74,7 +74,7 @@ class Jarvis:
         load_dotenv()
 
         print("Loading Vosk model...")
-        self.vosk_model = VoskModel("../models/vosk-small/vosk-model-small-en-us-0.15")
+        self.vosk_model = VoskModel("models/vosk-small/vosk-model-small-en-us-0.15")
         self.recognizer = KaldiRecognizer(self.vosk_model, self.RATE)
         print("Vosk ready.")
 
@@ -292,6 +292,7 @@ class Jarvis:
     # ----------------- Tool Executor -----------------
 
     def tool_executor(self, name: str, inputs: dict, loop: asyncio.AbstractEventLoop) -> str:
+        print(f"[Tool] Executing: {name} inputs: {inputs}")
         if name in self.CLIENT_SIDE_TOOLS:
             if self.remote_tool is None:
                 return "No client connected"
@@ -364,7 +365,10 @@ class Jarvis:
                     return b""
 
                 print(f"[Whisper] Recognized: {text}")
-                return await self._handle_command(text, now)
+                print("[Jarvis] Calling _handle_command...")
+                result = await self._handle_command(text, now)
+                print(f"[Jarvis] _handle_command returned {len(result)} bytes")
+                return result
 
         return b""
 
@@ -379,45 +383,55 @@ class Jarvis:
         self.message_history = self.message_history[-self.MAX_HISTORY:]
 
         loop = asyncio.get_running_loop()
+        print("[Jarvis] Calling Anthropic...")
         query = await asyncio.to_thread(self.run_with_tools, self.message_history, loop)
+        print(f"[Jarvis] Anthropic returned: {query}")
 
         self.message_history.append({"role": "assistant", "content": query})
         with open("memory.json", "w") as f:
             json.dump(self.message_history, f, cls=AnthropicEncoder, indent=2)
 
         self.last_interaction = now
+
+        print("[Jarvis] Generating TTS...")
         return self.voice.TTS_bytes(query)
 
     # ----------------- Tool Loop -----------------
 
     def run_with_tools(self, messages: list, loop: asyncio.AbstractEventLoop) -> str:
         messages = list(messages)
-        while True:
-            response = self.client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=512,
-                tools=self.tools,
-                system=self.SYSTEM_PROMPT,
-                messages=messages
-            )
+        try:
+            while True:
+                response = self.client.messages.create(
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=512,
+                    tools=self.tools,
+                    system=self.SYSTEM_PROMPT,
+                    messages=messages
+                )
+                print(f"[Anthropic] stop_reason: {response.stop_reason}")
 
-            if response.stop_reason == "end_turn":
-                return next((b.text for b in response.content if hasattr(b, "text")), "")
+                if response.stop_reason == "end_turn":
+                    return next((b.text for b in response.content if hasattr(b, "text")), "")
 
-            messages.append({"role": "assistant", "content": response.content})
+                messages.append({"role": "assistant", "content": response.content})
 
-            tool_results = []
-            for block in response.content:
-                if block.type == "tool_use":
-                    result = self.tool_executor(block.name, block.input, loop)
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": str(result) if result is not None else "Done"
-                    })
+                tool_results = []
+                for block in response.content:
+                    if block.type == "tool_use":
+                        result = self.tool_executor(block.name, block.input, loop)
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": str(result) if result is not None else "Done"
+                        })
 
-            if tool_results:
-                messages.append({"role": "user", "content": tool_results})
+                if tool_results:
+                    messages.append({"role": "user", "content": tool_results})
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return f"Error: {e}"
 
     # ----------------- Cleanup -----------------
 

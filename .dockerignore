@@ -1,6 +1,4 @@
-.env
+server/.env
 __pycache__
 *.pyc
 .git
-/server/.cache
-/server/memory.json

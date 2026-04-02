@@ -4,6 +4,8 @@ LABEL authors="brumeako"
 
 WORKDIR /J.A.R.V.I.S
 
+ENV PYTHONUNBUFFERED=1
+
 COPY server/requirements.txt .
 
 RUN apt-get update && apt-get install -y portaudio19-dev libsndfile1 && rm -rf /var/lib/apt/lists/*
