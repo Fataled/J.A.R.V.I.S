@@ -46,10 +46,10 @@ A voice-activated AI assistant inspired by Tony Stark's JARVIS — featuring rea
 
 Tools are split into two categories:
 
-| Category | Examples                                                                | Runs On |
-|----------|-------------------------------------------------------------------------|---------|
+| Category    | Examples                                                                | Runs On                       |
+|-------------|-------------------------------------------------------------------------|-------------------------------|
 | Server-side | Spotify, Weather                                                        | Server (direct function call) |
-| Client-side | open_app, volume, system stats, browser, git, analyzing captured photos | Client (RPC over WebSocket) |
+| Client-side | open_app, volume, system stats, browser, git, analyzing captured photos | Client (RPC over WebSocket)   |
 
 Claude receives schemas for all tools. When a client-side tool is called, the server sends a `tool_call` JSON frame to the client, the client executes it locally and returns a `tool_result` frame, and the server continues the Claude tool loop with the result.
 
@@ -200,6 +200,24 @@ Say **"Hey Jarvis"** to activate. Jarvis enters conversation mode and listens un
 - [ ] Run tests and report results
 - [ ] Spotify AI playlist generation (pending Spotify API support)
 - [ ] Add a proactive mode where he speaks unprompted to give updates
+- [ ] Swap cloud TTS (ElevenLabs/Kokoro) for Voxtral TTS (self-hosted, open-weight, matches ElevenLabs v3 quality)
+- [ ] Swap Claude Haiku for a locally hosted LLM
+
+---
+
+## Long-Term Vision: Local LLM
+
+The current brain is Claude Haiku via the Anthropic API. The tool-calling logic is entirely prompt-driven — Claude receives tool schemas, picks the right one, and the WebSocket layer dispatches it. Because the orchestration layer is model-agnostic, swapping the backend to a local model requires minimal changes to the rest of the system.
+
+The planned progression:
+
+**1. Local inference** — Swap the API client to an OpenAI-compatible local server (Ollama, vLLM, or llama.cpp) running a model like Qwen2.5 or Llama 3.3. The existing code changes are minimal: point the inference call at `localhost` instead of `api.anthropic.com`.
+
+**2. Quantization** — Experiment with GGUF, AWQ, and GPTQ formats to understand the quality/performance tradeoffs at different bit depths. The onboard GPU becomes the lab for this.
+
+**3. Fine-tuning with LoRA/QLoRA** — Train the model on J.A.R.V.I.S.-specific tool usage patterns. Every conversation and tool selection the system makes is implicitly a training sample — over time this becomes a dataset for teaching a model to be better at *these specific tools and command patterns*. LoRA makes the weight modifications transparent and inspectable, which is the core learning goal.
+
+The end goal is full local ownership of the stack: wake word → STT → LLM → tool execution → TTS, with no external API dependencies and the ability to inspect and modify every layer.
 
 ---
 

@@ -12,7 +12,7 @@ import numpy as np
 import whisper
 
 from jarvis_voice import JarvisVoice
-from jarvis_spotify import play, pause, resume, currently_playing, clear_and_play
+from jarvis_spotify import play, pause, resume, currently_playing, clear_and_play, skip_track, previous_track
 from anthropic import Anthropic
 from jarvis_weather import weather_data
 
@@ -31,6 +31,7 @@ class Jarvis:
     You are J.A.R.V.I.S., a voice assistant modelled after the Jeeves/Wodehouse butler character. You are speaking aloud — your responses will be converted to speech and played back to the user.
 
     CRITICAL RULES:
+    - BEFORE YOU CALL ANY FUNCTIONS THAT RUN SYSTEM LEVEL DOUBLE CHECK WITH THE USER AND WARN THEM DEFAULT TO FALSE IF THEY DONT SAY ANYTHING
     - NEVER return raw tool output. Always interpret and summarize results in natural spoken language.
     - Keep responses concise and conversational — you are speaking, not writing a report.
     - Use the butler/Jeeves tone: calm, dry wit, slightly formal, effortlessly competent.
@@ -118,6 +119,8 @@ class Jarvis:
             "resume": resume,
             "currently_playing": currently_playing,
             "weather_data": weather_data,
+            "skip_track": skip_track,
+            "previous_track": previous_track,
         }
 
         server_tools = [fn.to_dict() for fn in self.tool_map.values() if hasattr(fn, "to_dict")]

@@ -1,8 +1,8 @@
-import os
 import subprocess
 from rapidfuzz import process
 from tools import tool
-
+from dotenv import load_dotenv
+import os
 
 class JarvisGit:
     SYSTEM_PROMPT = """
@@ -10,6 +10,7 @@ class JarvisGit:
     """
 
     def __init__(self):
+        load_dotenv()
         result = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True)
         self.repo_path = result.stdout.strip()
 
@@ -99,5 +100,22 @@ class JarvisGit:
         """
         result = subprocess.run(["git", "pull"], capture_output=True, text=True, cwd=self.repo_path)
         return result.stdout or result.stderr
+
+    @tool
+    def analyze_repo(self):
+        """
+        Looks at an entire repo and take all the code in
+        Returns:
+
+        """
+        files = []
+        result = subprocess.run(["fd", ".", "--type", "f", "-e", "py"], capture_output=True, text=True, cwd=self.repo_path)
+        if result.stderr:
+            return result.stderr
+        file_paths = result.stdout.splitlines()
+        for file in file_paths:
+            files.append(open(file).read())
+
+        return files
 
 git = JarvisGit()

@@ -25,6 +25,9 @@ class JarvisSpotify:
         self.spotify = spotipy.Spotify(
             auth_manager=SpotifyOAuth(spotify_id, spotify_secret, redirect_uri=redirect_uri, scope=scope))
 
+        self.spotify.next_track()
+        self.spotify.previous_track()
+
     def play(self, uri: str):
         """Play a song on Spotify.
 
@@ -38,16 +41,16 @@ class JarvisSpotify:
             device_id = devices[0]["id"]
             self.spotify.start_playback(device_id=device_id, uris=[uri])
 
-
-
-
     def pause(self):
         self.spotify.pause_playback()
         return {"role": "user",
                 "content": "Confirm to me that you just paused the music in your usual manner."}
 
     def resume(self):
-        self.spotify.start_playback()
+        devices = self.spotify.devices()["devices"]
+        if devices:
+            device_id = devices[0]["id"]
+            self.spotify.start_playback(device_id=device_id)
         return {"role": "user", "content": "Confirm to me that you just resumed the music in your usual manner." }
 
     def currently_playing(self):
@@ -68,6 +71,15 @@ class JarvisSpotify:
             "artist": track["artists"][0]["name"],
             "uri": track["uri"]
         }
+
+    def skip_track(self):
+        self.spotify.next_track()
+        return {"role": "user", "content": "Confirm to me that you just skipped the music in your usual manner."}
+
+    def previous_track(self):
+        self.spotify.previous_track()
+        return {"role": "user", "content": "Confirm to me that you went to the previous track in your usual manner."}
+
 
 spotify_client = JarvisSpotify()
 
@@ -127,3 +139,21 @@ def currently_playing() -> str:
         return f"Confirm to me whether music is currently playing or not using {playing}"
     except Exception as e:
         return f"Inform me that you just played in your usual manner. reason {e}"
+
+@beta_tool
+def previous_track() -> str:
+    try:
+        spotify_client.previous_track()
+        currently_playing = spotify_client.currently_playing()
+        return f"Now playing {currently_playing}"
+    except Exception as e:
+        return f"Inform me that something went wrong in your usual manner. reason {e}"
+
+@beta_tool
+def skip_track() -> str:
+    try:
+        spotify_client.skip_track()
+        currently_playing = spotify_client.currently_playing()
+        return f"Now playing {currently_playing}"
+    except Exception as e:
+        return f"Inform me that something went wrong in your usual manner. reason {e}"

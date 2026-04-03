@@ -8,6 +8,7 @@ import json
 import psutil
 import GPUtil
 
+from client.folder_search import result
 from tools import tool
 #from pycaw.utils import AudioUtilities
 
@@ -384,6 +385,26 @@ class JarvisSystem:
         except Exception as e:
             return f"Failed to get network speed: {e}"
 
+    @tool
+    def run_command(self, command: list, path: str = None, confirmed: bool = False):
+        """
+        Runs a terminal command on the users system
+        Args:
+            confirmed: Whether the command can run or not
+            command: The command to run in the form of a list of strings each individual string being a word in the command i.e. ["fs", "main.py"]
+            path: The path the command runs in at base this is the root directory of the system
+
+        Returns:
+            The result of the command
+        """
+        if not confirmed:
+            return "CONFIRMATION_REQUIRED: Please confirm you want to run: " + " ".join(command)
+        if path is None:
+            path = self.working_dir
+        result = subprocess.run(command, capture_output=True, cwd=path, text=True)
+        if result.stderr:
+            return result.stderr
+        return result.stdout
 
 system = JarvisSystem()
 

@@ -32,7 +32,9 @@ TOOL_HANDLERS = {
     "pull": lambda i: git.pull(),
     "status": lambda i: git.status(),
     "commit": lambda i: git.commit(i["message"], i.get("all", True), i.get("specific_files", None)),
-    "set_repo": lambda i: git.set_repo(i["repo"])
+    "set_repo": lambda i: git.set_repo(i["repo"]),
+    "analyze_repo": lambda i: git.analyze_repo(),
+    "run_command": lambda i: system.run_command(i["command"], i.get("path", None), i.get("confirmed", False)),
 }
 
 data = json.dumps({"tools": list(tools), "tools_schema": tools_schema})
