@@ -70,7 +70,7 @@ class Jarvis:
 
     SILENCE_LIMIT = 1.2
     MIN_COMMAND_DURATION = 0.5
-    SILENCE_RMS_THRESHOLD = 200
+    SILENCE_RMS_THRESHOLD = 400
 
     # Tools that execute on the client machine via RPC
     CLIENT_SIDE_TOOLS = set()
@@ -107,6 +107,8 @@ class Jarvis:
 
         self.audio_buffer = deque(maxlen=50)
         self.frame_buffer = deque(maxlen=50)
+
+        self._processing_lock = asyncio.Lock()
 
         # Injected by the WebSocket server when a client connects
         self.remote_tool = None
@@ -201,62 +203,67 @@ class Jarvis:
     # ----------------- Audio Processing -----------------
 
     async def process_audio(self, chunk: bytes) -> bytes:
-        now = time.time()
-        rms = self._rms(chunk)
-        normalized = self._normalize_chunk(chunk)
-        is_speech = rms > self.SILENCE_RMS_THRESHOLD
+        async with self._processing_lock:
+            now = time.time()
+            rms = self._rms(chunk)
+            normalized = self._normalize_chunk(chunk)
+            is_speech = rms > self.SILENCE_RMS_THRESHOLD
 
-        # Phase 1: Wake-word detection via Vosk
-        if not self.CONVERSATION_MODE:
-            if self.recognizer.AcceptWaveform(normalized):
-                text = json.loads(self.recognizer.Result()).get("text", "")
-            else:
-                text = json.loads(self.recognizer.PartialResult()).get("partial", "")
+            # Phase 1: Wake-word detection via Vosk
+            if not self.CONVERSATION_MODE:
+                if self.recognizer.AcceptWaveform(normalized):
+                    text = json.loads(self.recognizer.Result()).get("text", "")
+                else:
+                    text = json.loads(self.recognizer.PartialResult()).get("partial", "")
 
-            if "hey jarvis" in text.lower():
-                self.recognizer.Reset()
-                self.CONVERSATION_MODE = True
-                self.collecting_command = False
-                self.command_buffer.clear()
-                self.last_interaction = now
-                print("[Vosk] Wake word detected")
-                return self.voice.TTS_bytes("Yes, sir")
-            return b""
+                if "hey jarvis" in text.lower():
+                    self.recognizer.Reset()
+                    self.CONVERSATION_MODE = True
+                    self.collecting_command = False
+                    self.command_buffer.clear()
+                    self.last_interaction = now
+                    print("[Vosk] Wake word detected")
+                    return self.voice.TTS_bytes("Yes, sir")
+                return b""
 
-        # Phase 2: Command collection + Whisper transcription
-        if is_speech:
-            self.command_buffer.append(normalized)
-            self.last_voice_chunk_time = now
-            self.collecting_command = True
-        elif self.collecting_command:
-            self.command_buffer.append(normalized)
-            silence_duration = now - self.last_voice_chunk_time
+            # Phase 2: Command collection + Whisper transcription
+            #print(f"[Debug] Phase2 entry: is_speech={is_speech}, collecting={self.collecting_command}, rms={rms:.0f}")
+            if is_speech:
+                #print(f"[Debug] Speech chunk, rms={rms:.0f}, collecting={self.collecting_command}")
+                self.command_buffer.append(normalized)
+                self.last_voice_chunk_time = now
+                self.collecting_command = True
+            elif self.collecting_command:
+                silence_duration = now - self.last_voice_chunk_time
+                #print(f"[Debug] Silence {silence_duration:.2f}s, buffer={len(self.command_buffer)}")
+                self.command_buffer.append(normalized)
 
-            if silence_duration >= self.SILENCE_LIMIT:
-                collected_duration = len(self.command_buffer) * self.CHUNK / self.RATE
+                if silence_duration >= self.SILENCE_LIMIT:
+                    collected_duration = len(self.command_buffer) * self.CHUNK / self.RATE
+                    #print(f"[Debug] Silence detected, buffer size: {len(self.command_buffer)}, duration: {collected_duration:.1f}s")
 
-                if collected_duration < self.MIN_COMMAND_DURATION:
+                    if collected_duration < self.MIN_COMMAND_DURATION:
+                        self.command_buffer.clear()
+                        self.collecting_command = False
+                        return b""
+
+                    print(f"[Whisper] Transcribing {collected_duration:.1f}s of audio...")
+                    text = await asyncio.to_thread(
+                        self._whisper_transcribe, list(self.command_buffer)
+                    )
                     self.command_buffer.clear()
                     self.collecting_command = False
-                    return b""
 
-                print(f"[Whisper] Transcribing {collected_duration:.1f}s of audio...")
-                text = await asyncio.to_thread(
-                    self._whisper_transcribe, list(self.command_buffer)
-                )
-                self.command_buffer.clear()
-                self.collecting_command = False
+                    if not text:
+                        return b""
 
-                if not text:
-                    return b""
+                    print(f"[Whisper] Recognized: {text}")
+                    print("[Jarvis] Calling _handle_command...")
+                    result = await self._handle_command(text, now)
+                    print(f"[Jarvis] _handle_command returned {len(result)} bytes")
+                    return result
 
-                print(f"[Whisper] Recognized: {text}")
-                print("[Jarvis] Calling _handle_command...")
-                result = await self._handle_command(text, now)
-                print(f"[Jarvis] _handle_command returned {len(result)} bytes")
-                return result
-
-        return b""
+            return b""
 
     # ----------------- Command Handler -----------------
 
