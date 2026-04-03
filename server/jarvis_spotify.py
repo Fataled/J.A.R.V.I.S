@@ -25,8 +25,6 @@ class JarvisSpotify:
         self.spotify = spotipy.Spotify(
             auth_manager=SpotifyOAuth(spotify_id, spotify_secret, redirect_uri=redirect_uri, scope=scope))
 
-        self.spotify.next_track()
-        self.spotify.previous_track()
 
     def play(self, uri: str):
         """Play a song on Spotify.

@@ -8,7 +8,7 @@ ENV PYTHONUNBUFFERED=1
 
 COPY server/requirements.txt .
 
-RUN apt-get update && apt-get install -y portaudio19-dev libsndfile1 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y portaudio19-dev libsndfile1 ffmpeg && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir -r requirements.txt
 

@@ -1,11 +1,12 @@
 anthropic==0.88.0
-duckduckgo-search==8.1.1
+ddgs==9.12.0
 gputil==1.4.0
 numpy==2.4.4
-opencv-python==4.13.0.92
+opencv_python==4.13.0.92
+opencv_python_headless==4.13.0.92
 psutil==7.2.2
 pyaudio==0.2.14
 python-dotenv==1.2.2
+rapidfuzz==3.14.3
 scipy==1.17.1
 websockets==16.0
-rapidfuzz==3.14.3
