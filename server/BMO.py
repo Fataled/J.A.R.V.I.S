@@ -1,17 +1,18 @@
 import asyncio
 import json
-import os
 import time
 from pathlib import Path
 from collections import deque
 
 from dotenv import load_dotenv
+from qwen_agent.utils.output_beautify import typewriter_print
 from vosk import Model as VoskModel, KaldiRecognizer
 from pyaudio import paInt16
 import numpy as np
 import whisper
-from anthropic import Anthropic
 from bmo_voice import BMOVoice
+from qwen_agent.llm import get_chat_model
+from qwen_agent.agents import Assistant
 
 
 
@@ -25,6 +26,7 @@ class AnthropicEncoder(json.JSONEncoder):
 
 
 class BMO:
+
     SYSTEM_PROMPT = """
     You are BMO, the small living video game console from Adventure Time, now serving as a voice assistant. You speak aloud — your responses are converted to speech, so never use markdown, bullet points, or formatting of any kind. Keep responses short and natural for speech.
 
@@ -64,6 +66,8 @@ class BMO:
     - "Your machine is running well, sir."
     """
 
+    SYSTEM_MESSSAGE = {"role": "system", "content": SYSTEM_PROMPT}
+
     FAREWELL_WORDS = {"goodbye", "dismissed", "that's all", "thank you", "that will be all"}
 
     CHUNK = 1280
@@ -95,8 +99,27 @@ class BMO:
         print("Voice ready.")
 
         print("Initializing Qwen client...")
-        self.client = Anthropic(os.getenv("ANTHROPIC_API_KEY"))
+        #self.client = Anthropic(os.getenv("ANTHROPIC_API_KEY"))
         print("Qwen ready.")
+
+        self.llm_cfg = {
+            "model": "Qwen3:8b",
+            "model_server": "http://localhost:11434/v1",
+            "api_key": "EMPTY",
+            'generate_cfg': {
+                    'fncall_prompt_type': "nous"
+                },
+            }
+
+        self.llm = get_chat_model({**self.llm_cfg,
+                      "fncall_prompt_type": 'nous'})
+
+        self.bmo = Assistant(llm=self.llm,
+                             name="BMO",
+                             description=BMO.SYSTEM_PROMPT
+                             )
+
+        self.pending: dict[str, asyncio.Future] = {}
 
         self.MAX_HISTORY = 7
         self.CONVERSATION_MODE = False
@@ -169,13 +192,14 @@ class BMO:
 
     def _general_msg(self, text: str) -> str:
         print("[BMO] General message:", text)
-        response = self.client.messages.create(
-                        max_tokens=64,
-                        messages={},
-                        model="claude-haiku-4-5",
-                    )
+        messages = [{'role': 'user', 'content': text}]
+        response_plain_text = ''
+        for response in self.bmo.run(messages=messages):
+            response_plain_text = typewriter_print(response, response_plain_text)
 
-        return response.content
+        return response_plain_text
+
+
 
     # ----------------- Tool Executor -----------------
 
@@ -265,7 +289,7 @@ class BMO:
 
     # ----------------- Command Handler -----------------
 
-    async def _handle_command(self, text: str, now: float, extras: str = "") -> bytes:
+    async def _handle_command(self, text: str, now: float) -> bytes:
         if self._is_farewell(text):
             self.stop_listening()
             farewell = await asyncio.to_thread(self._general_msg, "The user is saying goodbye. Give a short farewell.")
@@ -274,9 +298,8 @@ class BMO:
         self.message_history.append({"role": "user", "content": text})
         self.message_history = self.message_history[-self.MAX_HISTORY:]
 
-        loop = asyncio.get_running_loop()
         print("[BMO] Calling Anthropic...")
-        query = await asyncio.to_thread(self.run_with_tools, self.message_history, loop, extras)
+        query = await self.run_with_tools(self.message_history)
         print(f"[BMO] Anthropic returned: {query}")
 
         self.message_history.append({"role": "assistant", "content": query})
@@ -290,59 +313,56 @@ class BMO:
 
     # ----------------- Tool Loop -----------------
 
-    def run_with_tools(self, messages: list, loop: asyncio.AbstractEventLoop, extras: str = "") -> str:
+    async def run_with_tools(self, messages: list) -> str:
         messages = list(messages)
-
+        responses = []
+        MAX_ITERATIONS = 10
+        iteration = 0
         try:
-            while True:
-                response = self.client.messages.create(
-                    max_tokens=512,
-                    messages=messages,
-                    model="claude-haiku-4-5",
-                    tools=self.tools
-                )
+            print("[BMO] Calling the llm...")
+            while iteration < MAX_ITERATIONS:
+                iteration += 1
+                for responses in self.llm.chat(
+                    [BMO.SYSTEM_MESSSAGE] + messages,
+                    functions=self.tools,
+                    stream=True,
 
-                # Extract tool calls
-                tool_calls = [c for c in response.content if c["type"] == "tool_use"]
+                ):
+                    continue
 
-                # If no tool calls → return text
-                if not tool_calls:
-                    return "".join(
-                        c["text"] for c in response.content if c["type"] == "text"
-                    )
+                messages.extend(responses)
 
-                # Append assistant response
-                messages.append({
-                    "role": "assistant",
-                    "content": response.content
-                })
+                last_response = messages[-1]
 
-                tool_results = []
+                print(f"[BMO] {last_response}")
 
-                for tc in tool_calls:
-                    result = self.tool_executor(
-                        tc["name"],
-                        tc["input"],
-                        loop
-                    )
+                if last_response.get("function_call", None):
+                    available_functions = BMO.CLIENT_SIDE_TOOLS
+                    function_call = last_response["function_call"]
+                    if function_call:
+                        function_name = function_call["name"]
+                        arguments = function_call["arguments"]
+                        function_call = function_name if function_name in available_functions else None
+                        function_args = json.loads(arguments or "{}")
+                        print(f"[BMO] {function_call}: {function_args}")
+                        response = await self.remote_tool(name=function_call, inputs=function_args)
+                        messages.append({
+                                'role': 'function',
+                                'name': function_name,
+                                'content': str(response) if response is not None else "Done.",
+                                })
+                    else:
+                        return last_response.get("content", "")
 
-                    tool_results.append({
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": tc["id"],
-                                "content": str(result)
-                            }
-                        ]
-                    })
+                elif last_response["role"] == "assistant":
+                    return last_response["content"]
 
-                messages.extend(tool_results)
 
         except Exception as e:
             import traceback
             traceback.print_exc()
             return f"Error: {e}"
+
     # ----------------- Cleanup -----------------
 
     def stop_listening(self):

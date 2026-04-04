@@ -1,13 +1,9 @@
 import json
-import time
 
 from qwen_agent.llm import get_chat_model
 
 from tools import tools_schema
 from bmo_spotify import Spotify
-from qwen_agent.agents import Assistant
-
-
 
 SYSTEM_PROMPT = """
     You are BMO, the small living video game console from Adventure Time, now serving as a voice assistant. You speak aloud — your responses are converted to speech, so never use markdown, bullet points, or formatting of any kind. Keep responses short and natural for speech.
@@ -62,7 +58,7 @@ llm_cfg = {
 llm = get_chat_model({**llm_cfg,
                       "fncall_prompt_type": 'nous'})
 
-messages = [{'role': 'user', 'content': "play the song night before -acoustic by cherry ferrari"}]
+messages = [{'role': 'user', 'content': "play the song Headlines"}]
 responses = []
 
 for responses in llm.chat(
@@ -108,5 +104,7 @@ if last_response.get('function_call', None):
             functions=tools_schema,
             stream=True,
     ):  # get a new response from the model where it can see the function response
-        print(responses)
+        continue
+
+    print(responses[-1])
 

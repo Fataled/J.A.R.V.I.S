@@ -161,7 +161,7 @@ OPENWEATHER_API_KEY=your_weather_api_key
 
 ```bash
 source .venv/bin/activate
-python websocket.py
+python ws-server.py
 ```
 
 ### Start the client (same machine or any device on the network)
