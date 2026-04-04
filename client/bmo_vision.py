@@ -9,7 +9,7 @@ from ImageIdError import ImgIdException
 from ImgCaptureException import ImgCaptureException
 from tools import tool
 
-class JarvisVision:
+class BMOVision:
     def __init__(self, SystemPrompt: str = ''):
         load_dotenv()
         self.video_capture = cv.VideoCapture(0)
@@ -101,10 +101,10 @@ class JarvisVision:
             return f"Failed at unkown step due to {e}"
 
 
-vision = JarvisVision()
+vision = BMOVision()
 
 def main():
-    vision = JarvisVision()
+    vision = BMOVision()
     vision.take_picture("Hi")
     vision.get_id("Hi")
     print(vision.analyze_image("analyze this"))

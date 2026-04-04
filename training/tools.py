@@ -2,7 +2,7 @@ import inspect
 
 tools_schema = []
 
-tools = set()
+tools = {}
 
 TYPE_MAP = {
     str: "string",
@@ -42,7 +42,7 @@ def tool(func):
         }
     })
 
-    tools.add(func.__name__)
+    tools.update({f"{func.__name__}": ""})
 
     return func
 

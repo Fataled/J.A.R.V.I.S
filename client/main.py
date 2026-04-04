@@ -2,18 +2,21 @@ import asyncio
 import base64
 import json
 import threading
+import time
 
 import numpy as np
 import pyaudio
 import websockets
 
 # Import your system tools
-from jarvis_system import system # the JarvisSystem instance
-from jarvis_web_access import search_web, aquire_links
-from jarvis_vision import vision
-from jarvis_git import git
+from bmo_system import system # the BMOSystem instance
+from bmo_web_access import search_web, aquire_links
+from bmo_vision import vision
+from bmo_git import git
+from bmo_spotify import spotify
+from bmo_weather import weather
 import queue as stdlib_queue
-from tools import tools, tools_schema
+from tools import tools, tools_schema, to_openai_schema
 
 TOOL_HANDLERS = {
     "open_app":        lambda i: system.open_app(i["app"]),
@@ -23,8 +26,7 @@ TOOL_HANDLERS = {
     "mute":            lambda i: system.mute_linux() or "Toggled mute",
     "get_system_status": lambda i: system.get_system_status() if hasattr(system, 'get_system_status') else "N/A",
     "network_speed":   lambda i: system.network_speed() if hasattr(system, 'network_speed') else "N/A",
-    "read_active_file": lambda i: open("/tmp/jarvis_active_file").read(),
-    "jarvis_clip_that": lambda i: system.jarvis_clip_that(i["filename"]),
+    "bmo_clip_that": lambda i: system.bmo_clip_that(i["filename"]),
     "aquire_links": lambda i: aquire_links(i["query"]),
     "search_web": lambda i: search_web(i["url"]),
     "capture_and_analyze": lambda i: vision.capture_and_analyze(i["filename"], i["message"]),
@@ -35,9 +37,17 @@ TOOL_HANDLERS = {
     "set_repo": lambda i: git.set_repo(i["repo"]),
     "analyze_repo": lambda i: git.analyze_repo(),
     "run_command": lambda i: system.run_command(i["command"], i.get("path", None), i.get("confirmed", False)),
+    "play": lambda i: spotify.play(i["url"]),
+    "pause": lambda i: spotify.pause(),
+    "resume": lambda i: spotify.resume(),
+    "currently_playing": lambda i: spotify.currently_playing(),
+    "search_and_play": lambda i: spotify.search_and_play(i["song_name"], i.get("artist_name", "")),
+    "skip_track": lambda i: spotify.skip_track(),
+    "previous_track": lambda i: spotify.previous_track(),
+    "weather_data": lambda i: weather.weather_data(i["location"])
 }
 
-data = json.dumps({"tools": list(tools), "tools_schema": tools_schema})
+data = json.dumps({"tools": list(tools), "tools_schema": to_openai_schema(tools_schema)})
 
 def execute_tool(name: str, inputs: dict) -> str:
     handler = TOOL_HANDLERS.get(name)
@@ -50,7 +60,7 @@ def execute_tool(name: str, inputs: dict) -> str:
         return f"Tool {name} failed: {e}"
 
 
-WS_URL = "ws://localhost:8000/jarvis/ws"
+WS_URL = "ws://localhost:8000/bmo/ws"
 DEVICE_RATE = 48000
 TARGET_RATE = 16000
 CHUNK = 3840
@@ -73,6 +83,7 @@ def playback_thread():
         # blocks until data arrives
         if chunk is None:
             if out_stream:
+                time.sleep(0.5)
                 out_stream.stop_stream()
                 out_stream.close()
                 out_stream = None

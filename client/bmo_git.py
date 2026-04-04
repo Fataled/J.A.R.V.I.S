@@ -4,10 +4,7 @@ from tools import tool
 from dotenv import load_dotenv
 import os
 
-class JarvisGit:
-    SYSTEM_PROMPT = """
-    YOU ARE TO CHECK WHAT THE CLOSEST NAME OF A DIRECTORY IN A LIST OF DIRECTORIES IS TO THE GIVEN NAME AND THEN RETURN THAT DIRECTORY
-    """
+class BMOGit:
 
     def __init__(self):
         load_dotenv()
@@ -118,4 +115,4 @@ class JarvisGit:
 
         return files
 
-git = JarvisGit()
+git = BMOGit()

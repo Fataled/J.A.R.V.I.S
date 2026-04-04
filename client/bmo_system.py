@@ -7,13 +7,11 @@ import threading
 import json
 import psutil
 import GPUtil
-
-from client.folder_search import result
 from tools import tool
 #from pycaw.utils import AudioUtilities
 
 
-class JarvisSystem:
+class BMOSystem:
     CLIPS_DIR = os.path.expanduser("~/Videos/JarvisClips/")
 
     PROCESS_BLACKLIST = {
@@ -119,7 +117,7 @@ class JarvisSystem:
             login = os.getlogin()
             if proc.pid in self.protected_pids:
                 return True
-            if proc.name().lower() in JarvisSystem.PROCESS_BLACKLIST:
+            if proc.name().lower() in BMOSystem.PROCESS_BLACKLIST:
                 return True
             if proc.uids().real == 0:
                 return True
@@ -270,7 +268,7 @@ class JarvisSystem:
             self._start_recorder(monitor, encoder)
 
     @tool
-    def jarvis_clip_that(self, filename: str):
+    def bmo_clip_that(self, filename: str):
         """
         Clip the last 30 seconds of screen recording and save it.
         Args:
@@ -291,20 +289,6 @@ class JarvisSystem:
     def stop_recording(self):
         if hasattr(self, "recorder"):
             self.recorder.terminate()
-
-    @tool
-    def read_active_file(self) -> str:
-        """
-        Read the currently active file open in the IDE.
-        Returns:
-            The file path and contents of the active file
-        """
-        try:
-            path = os.path.join(os.environ.get("TEMP", "/tmp"),
-                                "jarvis_active_file") if system.os == "win32" else "/tmp/jarvis_active_file"
-            return open(path).read()
-        except FileNotFoundError as e:
-            return f"No file currently open in IDE due to {e}"
 
     @staticmethod
     def get_size(bytes, suffix="B"):
@@ -406,7 +390,7 @@ class JarvisSystem:
             return result.stderr
         return result.stdout
 
-system = JarvisSystem()
+system = BMOSystem()
 
 def stop_recording():
     """Stop recording software

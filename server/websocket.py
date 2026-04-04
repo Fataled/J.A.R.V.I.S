@@ -7,14 +7,14 @@ import uvicorn
 from fastapi import FastAPI, WebSocket
 from fastapi.websockets import WebSocketDisconnect
 
-from Jarvis import Jarvis
+from BMO import BMO
 
 app = FastAPI()
-jarvis = Jarvis()
+bmo = BMO()
 
 
-@app.websocket("/jarvis/ws")
-async def jarvis_ws(websocket: WebSocket):
+@app.websocket("/bmo/ws")
+async def bmo_ws(websocket: WebSocket):
     await websocket.accept()
 
     pending: dict[str, asyncio.Future] = {}
@@ -50,14 +50,14 @@ async def jarvis_ws(websocket: WebSocket):
             pending.pop(call_id, None)
             return f"Tool {name} timed out"
 
-    jarvis.remote_tool = remote_tool
+    bmo.remote_tool = remote_tool
 
     audio_queue: asyncio.Queue = asyncio.Queue()
 
     async def audio_processor():
         while True:
             chunk = await audio_queue.get()
-            resp = await jarvis.process_audio(chunk)
+            resp = await bmo.process_audio(chunk)
 
             if isinstance(resp, bytes) and resp:
                 # Wake word / farewell — already fully generated, just send it
@@ -70,7 +70,7 @@ async def jarvis_ws(websocket: WebSocket):
                 await send_queue.put((json.dumps({"type": "tts_end"}), True))
 
             elif isinstance(resp, str) and resp:
-                for pcm_chunk in jarvis.voice.TTS_stream(resp):
+                for pcm_chunk in bmo.voice.TTS_stream(resp):
                     print(f"[server] sending TTS chunk {len(pcm_chunk)} bytes")
                     await send_queue.put((pcm_chunk, False))
                 print("[server] sending sentinel")
@@ -97,7 +97,7 @@ async def jarvis_ws(websocket: WebSocket):
                     pending.pop(msg["id"]).set_result(msg["result"])
                 elif msg["type"] == "setup":
                     print(f"[WS] {msg}")
-                    jarvis.set_client_tools(tools_schema=msg["tools_schema"], tools=msg["tools"])
+                    bmo.set_client_tools(tools_schema=msg["tools_schema"], tools=msg["tools"])
 
     try:
         tasks = await asyncio.gather(

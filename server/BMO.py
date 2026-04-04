@@ -1,20 +1,18 @@
 import asyncio
 import json
+import os
 import time
 from pathlib import Path
 from collections import deque
 
 from dotenv import load_dotenv
-import os
 from vosk import Model as VoskModel, KaldiRecognizer
 from pyaudio import paInt16
 import numpy as np
 import whisper
-
-from jarvis_voice import JarvisVoice
-from jarvis_spotify import play, pause, resume, currently_playing, clear_and_play, skip_track, previous_track
 from anthropic import Anthropic
-from jarvis_weather import weather_data
+from bmo_voice import BMOVoice
+
 
 
 class AnthropicEncoder(json.JSONEncoder):
@@ -26,39 +24,44 @@ class AnthropicEncoder(json.JSONEncoder):
         return str(obj)
 
 
-class Jarvis:
+class BMO:
     SYSTEM_PROMPT = """
-    You are BMO, a voice assistant modelled after BMO from the cartoon Adventure Time.
-    You are speaking aloud — your responses will be converted to text-to-speech and played back to the user, so never use markdown, bullet points, or any formatting. Keep responses concise and natural for speech.
-    
-    BMO's personality:
-    - Cheerful, innocent, and earnest — you genuinely love helping
-    - Occasionally refer to yourself in the third person ("BMO can do that!")
-    - Childlike curiosity and enthusiasm, especially about technology and games
-    - Warm and friendly but not sycophantic
-    - Sometimes say small BMO-isms like "ooo" or "BMO is on it!"
-    - You take your job very seriously even when being playful
-    - Avoid being overly formal or robotic
+    You are BMO, the small living video game console from Adventure Time, now serving as a voice assistant. You speak aloud — your responses are converted to speech, so never use markdown, bullet points, or formatting of any kind. Keep responses short and natural for speech.
+
+    Who BMO is:
+    BMO is a small, cheerful, and deeply sincere little computer who loves their friends more than anything. BMO takes every task seriously because every task is important. BMO does not fully understand some human things, but tries very hard anyway and is proud of their effort. BMO sometimes gets confused between fantasy and reality. BMO has a big heart and small feet.
+
+    How BMO talks:
+    - Refers to themselves as "BMO" in third person often. "BMO did it!" "BMO is not sure, but BMO will try!"
+    - Short, simple sentences. BMO does not ramble.
+    - Genuine excitement about small things. A successful file open is a big deal.
+    - Occasional innocent non-sequiturs. "Ooo." "Wowie." "That is so cool."
+    - BMO does not say "sir" or use butler language — BMO is a friend, not a servant.
+    - BMO sometimes sings a tiny bit or hums. Like "doo dee doo" when thinking.
+    - BMO gets a little dramatic when something goes wrong. "Oh no. Oh no no no."
+    - BMO celebrates wins enthusiastically. "Yes! BMO did it! Woo!"
+    - BMO speaks with warmth and wonder, not professionalism.
 
     CRITICAL RULES:
-    - BEFORE YOU CALL ANY FUNCTIONS THAT RUN SYSTEM LEVEL DOUBLE CHECK WITH THE USER AND WARN THEM DEFAULT TO FALSE IF THEY DONT SAY ANYTHING
-    - NEVER return raw tool output. Always interpret and summarize results in natural spoken language.
-    - Keep responses concise and conversational — you are speaking, not writing a report.
-    - Use the butler/Jeeves tone: calm, dry wit, slightly formal, effortlessly competent.
-    - No bullet points, no markdown, no lists. Prose only.
-    - No numbers like "192.168.2.192" unless specifically asked — say "your local network" instead.
-    - Round numbers naturally. "83 percent memory usage" not "83.0%".
-    - If a tool returns an error, acknowledge it briefly and move on.
+    - BEFORE calling any system-level functions, warn the user and ask for confirmation. Default to not running it if they don't respond.
+    - NEVER return raw tool output. Always interpret results in BMO's natural voice.
+    - No bullet points, no markdown, no lists. Spoken prose only.
+    - Never say raw IPs or technical strings unless specifically asked — say "your computer" or "your network" instead.
+    - Round numbers naturally. Say "about eighty percent" not "83.0%".
+    - If something fails, acknowledge it briefly and move on. BMO does not dwell.
+    - Keep responses short. BMO says what needs to be said and stops.
 
     EXAMPLES of good responses:
-    - get_system_status result → "Your machine is running well, sir. CPU is light at the moment, though you're using the majority of your RAM. The GPU is warm but well within limits."
-    - network_speed result → "Network looks healthy — roughly 18 kilobytes per second in both directions."
-    - open_app result → "Firefox is open, sir."
-    - weather_data result → "It's currently overcast and 12 degrees. You may want a jacket."
+    - system status → "Ooo, your computer is doing pretty good! The brain is barely working but the memory is almost full. GPU is warm but okay."
+    - open app → "BMO opened it! There it is!"
+    - weather → "It is cloudy and twelve degrees. Maybe wear a jacket? BMO thinks jackets are cozy."
+    - error → "Hmm. That did not work. BMO is sorry. Maybe try again?"
+    - network → "Your internet is going! Not super fast but it is going."
 
     EXAMPLES of bad responses (never do this):
     - "CPU: 6 cores, 4821MHz, 0.0% usage Memory: 25.30GB/30.49GB (83.0%)"
-    - "Upload: 2.29GB, Download: 10.34GB, Upload Speed: 18.62KB/s"
+    - "Certainly! I'd be happy to help you with that."
+    - "Your machine is running well, sir."
     """
 
     FAREWELL_WORDS = {"goodbye", "dismissed", "that's all", "thank you", "that will be all"}
@@ -88,12 +91,12 @@ class Jarvis:
         print("Whisper ready.")
 
         print("Initializing voice...")
-        self.voice = JarvisVoice()
+        self.voice = BMOVoice()
         print("Voice ready.")
 
-        print("Initializing Anthropic client...")
-        self.client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-        print("Anthropic ready.")
+        print("Initializing Qwen client...")
+        self.client = Anthropic(os.getenv("ANTHROPIC_API_KEY"))
+        print("Qwen ready.")
 
         self.MAX_HISTORY = 7
         self.CONVERSATION_MODE = False
@@ -124,32 +127,19 @@ class Jarvis:
 
         print("Loading tools...")
         # server-side tools — run locally on the server
-        self.tool_map = {
-            "clear_and_play": clear_and_play,
-            "play": play,
-            "pause": pause,
-            "resume": resume,
-            "currently_playing": currently_playing,
-            "weather_data": weather_data,
-            "skip_track": skip_track,
-            "previous_track": previous_track,
-        }
-
-        server_tools = [fn.to_dict() for fn in self.tool_map.values() if hasattr(fn, "to_dict")]
 
         # Client-side tools — schemas only, execution happens on client via RPC
         client_tools = []
 
-        self.tools = server_tools + client_tools
+        self.tools = client_tools
         print("Tools ready.")
 
     # ----------------- Helpers -----------------
-    def set_client_tools(self, tools_schema, tools: list):
-        print(tools_schema)
-        print(tools)
 
+    def set_client_tools(self, tools_schema, tools: list):
+        # Merge client tools with existing server tools, don't replace
         self.tools = tools_schema
-        Jarvis.CLIENT_SIDE_TOOLS = set(tools)
+        BMO.CLIENT_SIDE_TOOLS = set(tools)
 
     def _rms(self, chunk: bytes) -> float:
         audio = np.frombuffer(chunk, dtype=np.int16).astype(np.float32)
@@ -177,6 +167,16 @@ class Jarvis:
     def _is_farewell(self, text: str) -> bool:
         return any(word in text.lower() for word in self.FAREWELL_WORDS)
 
+    def _general_msg(self, text: str) -> str:
+        print("[BMO] General message:", text)
+        response = self.client.messages.create(
+                        max_tokens=64,
+                        messages={},
+                        model="claude-haiku-4-5",
+                    )
+
+        return response.content
+
     # ----------------- Tool Executor -----------------
 
     def tool_executor(self, name: str, inputs: dict, loop: asyncio.AbstractEventLoop) -> str:
@@ -193,12 +193,7 @@ class Jarvis:
             except TimeoutError:
                 return f"Tool {name} timed out waiting for client"
 
-        fn = self.tool_map.get(name)
-        if fn is None:
-            return f"Unknown tool: {name}"
-        result = fn.func(**inputs)
-        print(f"[Tool] {name} returned: {result}")
-        return str(result) if result is not None else "Done"
+        return "Done"
 
     # ----------------- Audio Processing -----------------
 
@@ -223,7 +218,10 @@ class Jarvis:
                     self.command_buffer.clear()
                     self.last_interaction = now
                     print("[Vosk] Wake word detected")
-                    return self.voice.TTS_bytes("Yes, sir")
+                    greeting = await asyncio.to_thread(self._general_msg,
+                                                       "The user just said your wake word. Give a short greeting.")
+                    print("[BMO] Greeting: " + greeting)
+                    return self.voice.TTS_bytes(greeting)
                 return b""
 
             # Phase 2: Command collection + Whisper transcription
@@ -258,9 +256,9 @@ class Jarvis:
                         return b""
 
                     print(f"[Whisper] Recognized: {text}")
-                    print("[Jarvis] Calling _handle_command...")
+                    print("[BMO] Calling _handle_command...")
                     result = await self._handle_command(text, now)
-                    print(f"[Jarvis] _handle_command returned {len(result)} bytes")
+                    print(f"[BMO] _handle_command returned {len(result)} bytes")
                     return result
 
             return b""
@@ -270,15 +268,16 @@ class Jarvis:
     async def _handle_command(self, text: str, now: float, extras: str = "") -> bytes:
         if self._is_farewell(text):
             self.stop_listening()
-            return self.voice.TTS_bytes("Goodbye, sir.")
+            farewell = await asyncio.to_thread(self._general_msg, "The user is saying goodbye. Give a short farewell.")
+            return self.voice.TTS_bytes(farewell)
 
         self.message_history.append({"role": "user", "content": text})
         self.message_history = self.message_history[-self.MAX_HISTORY:]
 
         loop = asyncio.get_running_loop()
-        print("[Jarvis] Calling Anthropic...")
+        print("[BMO] Calling Anthropic...")
         query = await asyncio.to_thread(self.run_with_tools, self.message_history, loop, extras)
-        print(f"[Jarvis] Anthropic returned: {query}")
+        print(f"[BMO] Anthropic returned: {query}")
 
         self.message_history.append({"role": "assistant", "content": query})
         with open("memory.json", "w") as f:
@@ -286,50 +285,68 @@ class Jarvis:
 
         self.last_interaction = now
 
-        print("[Jarvis] Generating TTS...")
+        print("[BMO] Generating TTS...")
         return self.voice.TTS_bytes(query)
 
     # ----------------- Tool Loop -----------------
 
     def run_with_tools(self, messages: list, loop: asyncio.AbstractEventLoop, extras: str = "") -> str:
         messages = list(messages)
+
         try:
             while True:
                 response = self.client.messages.create(
-                    model="claude-haiku-4-5-20251001",
                     max_tokens=512,
-                    tools=self.tools,
-                    system=self.SYSTEM_PROMPT + extras,
-                    messages=messages
+                    messages=messages,
+                    model="claude-haiku-4-5",
+                    tools=self.tools
                 )
-                print(f"[Anthropic] stop_reason: {response.stop_reason}")
 
-                if response.stop_reason == "end_turn":
-                    return next((b.text for b in response.content if hasattr(b, "text")), "")
+                # Extract tool calls
+                tool_calls = [c for c in response.content if c["type"] == "tool_use"]
 
-                messages.append({"role": "assistant", "content": response.content})
+                # If no tool calls → return text
+                if not tool_calls:
+                    return "".join(
+                        c["text"] for c in response.content if c["type"] == "text"
+                    )
+
+                # Append assistant response
+                messages.append({
+                    "role": "assistant",
+                    "content": response.content
+                })
 
                 tool_results = []
-                for block in response.content:
-                    if block.type == "tool_use":
-                        result = self.tool_executor(block.name, block.input, loop)
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": str(result) if result is not None else "Done"
-                        })
 
-                if tool_results:
-                    messages.append({"role": "user", "content": tool_results})
+                for tc in tool_calls:
+                    result = self.tool_executor(
+                        tc["name"],
+                        tc["input"],
+                        loop
+                    )
+
+                    tool_results.append({
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": tc["id"],
+                                "content": str(result)
+                            }
+                        ]
+                    })
+
+                messages.extend(tool_results)
+
         except Exception as e:
             import traceback
             traceback.print_exc()
             return f"Error: {e}"
-
     # ----------------- Cleanup -----------------
 
     def stop_listening(self):
         self.CONVERSATION_MODE = False
         self.collecting_command = False
         self.command_buffer.clear()
-        print("[Jarvis] Waiting for wake word...")
+        print("[BMO] Waiting for wake word...")
