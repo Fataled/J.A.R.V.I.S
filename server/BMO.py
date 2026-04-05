@@ -13,10 +13,10 @@ import whisper
 from bmo_voice import BMOVoice
 from qwen_agent.llm import get_chat_model
 from qwen_agent.agents import Assistant
+from openwakeword.model import Model
 
 
-
-class AnthropicEncoder(json.JSONEncoder):
+class LLMEncoder(json.JSONEncoder):
     def default(self, obj):
         if hasattr(obj, "text"):
             return obj.text
@@ -52,6 +52,7 @@ class BMO:
     - Round numbers naturally. Say "about eighty percent" not "83.0%".
     - If something fails, acknowledge it briefly and move on. BMO does not dwell.
     - Keep responses short. BMO says what needs to be said and stops.
+    - Dont use emojis or * in responses
 
     EXAMPLES of good responses:
     - system status → "Ooo, your computer is doing pretty good! The brain is barely working but the memory is almost full. GPU is warm but okay."
@@ -64,6 +65,7 @@ class BMO:
     - "CPU: 6 cores, 4821MHz, 0.0% usage Memory: 25.30GB/30.49GB (83.0%)"
     - "Certainly! I'd be happy to help you with that."
     - "Your machine is running well, sir."
+    
     """
 
     SYSTEM_MESSSAGE = {"role": "system", "content": SYSTEM_PROMPT}
@@ -119,6 +121,8 @@ class BMO:
                              description=BMO.SYSTEM_PROMPT
                              )
 
+        self.wake_word = Model(["models/wakeword.onnx"])
+
         self.pending: dict[str, asyncio.Future] = {}
 
         self.MAX_HISTORY = 7
@@ -145,7 +149,7 @@ class BMO:
         else:
             self.message_history = []
             with open("memory.json", "w") as f:
-                json.dump(self.message_history, f, cls=AnthropicEncoder, indent=2)
+                json.dump(self.message_history, f, cls=LLMEncoder, indent=2)
         print("Memory ready.")
 
         print("Loading tools...")
@@ -230,21 +234,17 @@ class BMO:
 
             # Phase 1: Wake-word detection via Vosk
             if not self.CONVERSATION_MODE:
-                if self.recognizer.AcceptWaveform(normalized):
-                    text = json.loads(self.recognizer.Result()).get("text", "")
-                else:
-                    text = json.loads(self.recognizer.PartialResult()).get("partial", "")
+                audio_int16 = np.frombuffer(chunk, dtype=np.int16)
+                wake_word = self.wake_word.predict(audio_int16)
+                print(wake_word)
 
-                if "hey jarvis" in text.lower():
-                    self.recognizer.Reset()
+                if wake_word['wakeword'] > 0.5:
                     self.CONVERSATION_MODE = True
                     self.collecting_command = False
                     self.command_buffer.clear()
                     self.last_interaction = now
-                    print("[Vosk] Wake word detected")
                     greeting = await asyncio.to_thread(self._general_msg,
                                                        "The user just said your wake word. Give a short greeting.")
-                    print("[BMO] Greeting: " + greeting)
                     return self.voice.TTS_bytes(greeting)
                 return b""
 
@@ -300,11 +300,13 @@ class BMO:
 
         print("[BMO] Calling Anthropic...")
         query = await self.run_with_tools(self.message_history)
+        #responses = self.bmo.run(messages = [{'role': 'user', 'content': query}])
+        #print("[BMO] Anthropic responses: " + str(responses))
         print(f"[BMO] Anthropic returned: {query}")
 
         self.message_history.append({"role": "assistant", "content": query})
         with open("memory.json", "w") as f:
-            json.dump(self.message_history, f, cls=AnthropicEncoder, indent=2)
+            json.dump(self.message_history, f, cls=LLMEncoder, indent=2)
 
         self.last_interaction = now
 
