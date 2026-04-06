@@ -87,11 +87,6 @@ class BMO:
     def __init__(self):
         load_dotenv()
 
-        print("Loading Vosk model...")
-        self.vosk_model = VoskModel("models/vosk-small/vosk-model-small-en-us-0.15")
-        self.recognizer = KaldiRecognizer(self.vosk_model, self.RATE)
-        print("Vosk ready.")
-
         print("Loading Whisper model...")
         self.whisper_model = whisper.load_model("base")
         print("Whisper ready.")
@@ -99,10 +94,6 @@ class BMO:
         print("Initializing voice...")
         self.voice = BMOVoice()
         print("Voice ready.")
-
-        print("Initializing Qwen client...")
-        #self.client = Anthropic(os.getenv("ANTHROPIC_API_KEY"))
-        print("Qwen ready.")
 
         self.llm_cfg = {
             "model": "Qwen3:8b",
@@ -135,7 +126,6 @@ class BMO:
         self.last_voice_chunk_time = 0.0
         self.collecting_command = False
 
-        self.audio_buffer = deque(maxlen=50)
         self.frame_buffer = deque(maxlen=50)
 
         self._processing_lock = asyncio.Lock()
@@ -168,7 +158,8 @@ class BMO:
         self.tools = tools_schema
         BMO.CLIENT_SIDE_TOOLS = set(tools)
 
-    def _rms(self, chunk: bytes) -> float:
+    @staticmethod
+    def _rms(chunk: bytes) -> float:
         audio = np.frombuffer(chunk, dtype=np.int16).astype(np.float32)
         return float(np.sqrt(np.mean(audio ** 2))) if len(audio) else 0.0
 
@@ -202,8 +193,6 @@ class BMO:
             response_plain_text = typewriter_print(response, response_plain_text)
 
         return response_plain_text
-
-
 
     # ----------------- Tool Executor -----------------
 
