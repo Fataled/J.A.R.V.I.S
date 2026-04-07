@@ -12,13 +12,16 @@ from tools import tool
 class BMOVision:
     def __init__(self, SystemPrompt: str = ''):
         load_dotenv()
-        self.video_capture = cv.VideoCapture(0)
+        self.video_capture = cv.VideoCapture(0) if cv.VideoCapture(0) is not None else None
         self.client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
         self.latest_capture_name = ""
         self.img_ids = {}
         self.system_prompt = SystemPrompt
 
     def take_picture(self, filename: str):
+        if self.video_capture is None:
+            return f"Cam doesn't seem to be open"
+
         if self.video_capture.isOpened():
             try:
                 rval, frame = self.video_capture.read()

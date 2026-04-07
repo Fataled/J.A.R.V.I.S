@@ -6,7 +6,6 @@ from collections import deque
 
 from dotenv import load_dotenv
 from qwen_agent.utils.output_beautify import typewriter_print
-from vosk import Model as VoskModel, KaldiRecognizer
 from pyaudio import paInt16
 import numpy as np
 import whisper
@@ -96,7 +95,7 @@ class BMO:
         print("Voice ready.")
 
         self.llm_cfg = {
-            "model": "Qwen3:8b",
+            "model": "Qwen2.5:7b-instruct",
             "model_server": "http://localhost:11434/v1",
             "api_key": "EMPTY",
             'generate_cfg': {
@@ -287,20 +286,25 @@ class BMO:
         self.message_history.append({"role": "user", "content": text})
         self.message_history = self.message_history[-self.MAX_HISTORY:]
 
-        print("[BMO] Calling Anthropic...")
+        print("[BMO] Calling Bmo...")
         query = await self.run_with_tools(self.message_history)
-        #responses = self.bmo.run(messages = [{'role': 'user', 'content': query}])
-        #print("[BMO] Anthropic responses: " + str(responses))
-        print(f"[BMO] Anthropic returned: {query}")
+        print(f"[BMO] Calling Bmo queried: {query}")
+        responses = None
+        for responses in self.bmo.run(messages = [{'role': 'user', 'content': query}]):
+            pass
 
-        self.message_history.append({"role": "assistant", "content": query})
+        final_response = responses[-1]["content"] if responses else ""
+
+        print(f"[BMO] Bmo returned: {final_response}")
+
+        self.message_history.append({"role": "assistant", "content": final_response})
         with open("memory.json", "w") as f:
             json.dump(self.message_history, f, cls=LLMEncoder, indent=2)
 
         self.last_interaction = now
 
         print("[BMO] Generating TTS...")
-        return self.voice.TTS_bytes(query)
+        return self.voice.TTS_bytes(final_response)
 
     # ----------------- Tool Loop -----------------
 
@@ -314,7 +318,7 @@ class BMO:
             while iteration < MAX_ITERATIONS:
                 iteration += 1
                 for responses in self.llm.chat(
-                    [BMO.SYSTEM_MESSSAGE] + messages,
+                    messages,
                     functions=self.tools,
                     stream=True,
 

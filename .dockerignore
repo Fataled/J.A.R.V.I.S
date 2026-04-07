@@ -1,5 +1,4 @@
-server/.env
+
 __pycache__
 *.pyc
 .git
-server/voice_cloner.py

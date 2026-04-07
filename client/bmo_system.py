@@ -247,16 +247,20 @@ class BMOSystem:
 
     def _start_recorder(self, monitor, encoder):
         """Start a fresh wf-recorder instance."""
-        if self.recorder and self.recorder.poll() is None:
-            self.recorder.terminate()
-            self.recorder.wait()
-        self.recorder = subprocess.Popen(
-            ["wf-recorder", "-o", monitor, "-c", encoder, "-f", "/tmp/jarvis_recording.mp4"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
-        self.protected_pids.add(self.recorder.pid)
-        self.recording_start_time = time.time()
+        try:
+            if self.recorder and self.recorder.poll() is None:
+                self.recorder.terminate()
+                self.recorder.wait()
+            self.recorder = subprocess.Popen(
+                ["wf-recorder", "-o", monitor, "-c", encoder, "-f", "/tmp/jarvis_recording.mp4"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            self.protected_pids.add(self.recorder.pid)
+            self.recording_start_time = time.time()
+        except Exception as e:
+            print("[Recorder] Failed to start recording: {}".format(e))
+
 
     def _rotate_recording(self):
         """Restart the recorder every 5 minutes to cap file size."""
