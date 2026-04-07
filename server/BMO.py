@@ -67,6 +67,8 @@ class BMO:
     
     """
 
+    MODEL = "qwen:2.5:7b-instruct"
+
     SYSTEM_MESSSAGE = {"role": "system", "content": SYSTEM_PROMPT}
 
     FAREWELL_WORDS = {"goodbye", "dismissed", "that's all", "thank you", "that will be all"}
@@ -95,7 +97,7 @@ class BMO:
         print("Voice ready.")
 
         self.llm_cfg = {
-            "model": "Qwen2.5:7b-instruct",
+           "model": BMO.MODEL,
             "model_server": "http://localhost:11434/v1",
             "api_key": "EMPTY",
             'generate_cfg': {
